@@ -1,0 +1,267 @@
+/* Stili per l'handle del blocco (POSIZIONE CORRETTA) */
+.block-wrapper {
+  position: relative;
+}
+
+.block-handle {
+  opacity: 0;
+  position: absolute;
+  /* MODIFICA: 
+    Posiziona l'handle a 0.75rem (12px) dal bordo del 
+    contenitore del blocco, invece che fuori dallo schermo. 
+  */
+  left: 0rem; 
+  top: 0;
+  transition: opacity 150ms ease-in-out;
+  z-index: 10;
+}
+
+/* MODIFICA:
+  Mostra l'handle sia al :hover sul wrapper, 
+  SIA quando il menu è aperto (classe .is-active).
+  Questo risolve il problema del menu che scompare.
+*/
+.block-wrapper:hover .block-handle,
+.block-wrapper .block-handle.is-active {
+  opacity: 1;
+}
+
+
+
+/*
+ * Stili per i Placeholder di Tiptap (Editor)
+ * ---------------------------------------------
+ * Questo fa sì che il testo del placeholder (es. "Heading 2")
+ * erediti lo stile del blocco in cui si trova (es. h2).
+*/
+
+/*
+ * FIX PER I PLACEHOLDER DI TIPTAP
+ *
+ * Forza i placeholder (::before) ad ereditare lo stile
+ * del loro genitore (h1, h2, p) anche quando si usa
+ * la classe .prose di Tailwind.
+*/
+
+/*
+ * FIX PER I PLACEHOLDER DI TIPTAP (v3 - Più Specifico)
+ *
+ * Forziamo lo stile corretto sui placeholder all'interno di .prose
+*/
+
+/* File CSS globale (es. index.css) 
+  Questo risolve il problema di stile dei placeholder.
+*/
+
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (DA SOSTITUIRE) --- */
+
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (Versione con :has()) --- */
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (Test di Debug) --- */
+
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (Finale, Senza @apply, Senza float) --- */
+
+/* 1. Imposta il genitore per il posizionamento assoluto */
+.prose .react-renderer.is-empty {
+  position: relative;
+}
+
+/* 2. Stile di base per TUTTI i placeholder (con position: absolute) */
+.prose .react-renderer.is-empty::before,
+.prose .is-empty::before {
+  content: attr(data-placeholder);
+  
+  /* Risolve tutti i problemi di allineamento e sovrapposizione */
+  position: absolute;
+  left: 0;
+  top: 0;
+  
+  pointer-events: none;
+  font-style: normal;
+  
+  /* Colori hardcoded (bypassando @apply) */
+  color: #9b9a97; /* Colore Tiptap/Notion light mode */
+}
+
+/* Override per il Dark Mode */
+.dark .prose .react-renderer.is-empty::before,
+.dark .prose .is-empty::before {
+  color: #8a8a8a; /* Colore Tiptap/Notion dark mode */
+}
+
+/*
+  Questo CSS ora funzionerà perché .is-empty è applicato
+  direttamente a h1, h2, p, ecc. e può ereditarne gli stili di font.
+*/
+.prose .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+
+  /* Imposta solo il colore/opacità, eredita tutto il resto */
+  color: theme('colors.notion-text-gray.DEFAULT', #9B9A97);
+  opacity: 0.6;
+}
+
+/* Versione Dark Mode */
+.dark .prose .is-empty::before {
+  color: theme('colors.notion-text-gray-dark.DEFAULT', #9B9A97);
+  opacity: 0.6;
+}
+
+/*
+  NOTA PER I BLOCCHI DI CODICE:
+  Il tuo 'CustomCodeBlock' usa 'CodeBlockComponent'.
+  Dovrai applicare la stessa logica del Passaggio 1
+  anche a 'CodeBlockComponent.tsx' per far funzionare
+  correttamente il placeholder del blocco di codice.
+
+  Se lo fai, questa regola gestirà lo stile per <pre>.
+*/
+.prose pre.is-empty {
+  position: relative;
+}
+
+.prose pre.is-empty::before {
+  position: absolute;
+  float: none;
+  height: auto;
+  /* Potrebbe essere necessario regolare top/left 
+    in base al padding del tuo <pre> 
+  */
+  top: 1.25em; 
+  left: 1.5em;
+}
+
+
+
+
+
+/*
+ * Stili per i punti elenco annidati nell'editor
+ */
+
+/* Livello 1: Pallino pieno (default) */
+.prose ul > li {
+  list-style-type: disc;
+}
+
+/* Livello 2 (dopo 1 Tab): Pallino vuoto */
+.prose ul ul > li {
+  list-style-type: circle;
+}
+
+/* Livello 3 (dopo 2 Tab): Quadrato */
+.prose ul ul ul > li {
+  list-style-type: square;
+}
+
+/* Livello 4 (dopo 3 Tab): Trattino (puoi continuare) */
+.prose ul ul ul ul > li {
+  list-style-type: "- "; /* Aggiunge un trattino */
+}
+
+
+
+
+
+/* Assicurati che il .block-wrapper sia 'relative' per 
+  posizionare correttamente gli pseudo-elementi.
+  Il tuo file BlockWrapperComponent.tsx usa già 'relative', 
+  quindi sei a posto, ma aggiungerlo esplicitamente non fa male.
+*/
+.block-wrapper {
+  position: relative;
+}
+
+/* Disegna la linea BLU a SINISTRA */
+.block-wrapper.show-drop-line-left::before {
+  content: '';
+  position: absolute;
+  top: 4px; /* Un po' di padding dall'alto */
+  bottom: 4px; /* Un po' di padding dal basso */
+  left: -8px; /* Posiziona a sinistra del blocco */
+  width: 4px;
+  background-color: #60A5FA; /* Colore blu (lo stesso del Dropcursor) */
+  border-radius: 2px;
+  z-index: 10;
+}
+
+/* Disegna la linea BLU a DESTRA */
+.block-wrapper.show-drop-line-right::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: -8px; /* Posiziona a destra del blocco */
+  width: 4px;
+  background-color: #60A5FA;
+  border-radius: 2px;
+  z-index: 10;
+}
+
+
+/* Inserisci in: src/index.css (o il tuo file CSS globale) */
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.blinking-cursor {
+  /* Usa 'inline-block' per assicurare che non collassi */
+  display: inline-block;
+  width: 7px; /* Larghezza del cursore */
+  
+  /* Usa il font e la dimensione corretti */
+  font-weight: bold;
+  
+  /* L'animazione */
+  animation: blink 1s step-end infinite;
+  
+  /* Allineamento verticale (opzionale, ma aiuta) */
+  position: relative;
+  top: 1px;
+}
+
+
+
+
+@layer utilities {
+  /* Nasconde la scrollbar per Chrome, Safari e Edge */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Nasconde la scrollbar per IE, Edge e Firefox */
+  .scrollbar-none {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+
+/* Definiamo l'animazione di fade-in e leggero scorrimento verso l'alto */
+@keyframes fadeInStagger {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* * Applichiamo l'animazione a tutti i blocchi diretti dentro l'editor.
+ * Inizialmente sono invisibili (opacity: 0).
+ * 'animation-fill-mode: forwards' assicura che rimangano visibili (opacity: 1) 
+ * al termine dell'animazione.
+*/
+.ProseMirror > * {
+  opacity: 0; /* Inizia invisibile */
+  animation: fadeInStagger 400ms ease-out forwards;
+  /* Il ritardo (animation-delay) verrà applicato via JavaScript */
+}

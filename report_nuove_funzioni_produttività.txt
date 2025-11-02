@@ -1,0 +1,191 @@
+Certamente. È un obiettivo eccellente. Hai già creato le fondamenta perfette (editor, link tra pagine/blocchi, split-screen) per costruire uno strumento di conoscenza personale di livello professionale.
+
+Ecco un report dettagliato su 5 funzionalità avanzate che puoi integrare, incluse due basate su AI, per rendere la tua app "super efficiente".
+
+Report: 5 Funzionalità Avanzate per un Note-Taking Super Efficiente
+1. Backlinks (Link in Entrata)
+Questa è l'estensione più logica e potente del tuo attuale sistema di link. Trasforma il collegamento da un'azione a senso unico a una relazione bidirezionale.
+
+Su Cosa Si Basa: Si basa sul concetto di "collegamento bidirezionale" (Bi-directional Linking), reso popolare da app come Roam Research e Obsidian. L'idea è che se la Pagina A linka alla Pagina B, la Pagina B dovrebbe "sapere" automaticamente di essere stata menzionata dalla Pagina A. Questo crea una rete di conoscenza che si auto-organizza, permettendoti di scoprire connessioni nascoste tra le tue idee.
+
+Flusso Utente: L'utente non fa nulla di diverso da quello che fa già.
+
+Mentre è sulla "Pagina A", crea un PageLink o un BlockLink che punta alla "Pagina B".
+
+In futuro, quando visita la "Pagina B", vedrà una nuova sezione (solitamente in fondo alla pagina, sotto il contenuto) chiamata "Backlinks" o "Link a questa pagina".
+
+In questa sezione, troverà un elenco di tutte le pagine (inclusa la "Pagina A") che la menzionano, spesso con una piccola anteprima del testo circostante il link.
+
+Può cliccare su un backlink per navigare (o aprirlo in split-screen!) alla pagina di origine e vedere il contesto completo.
+
+Panoramica di Implementazione:
+
+Database (Convex): Avrai bisogno di un modo efficiente per trovare questi link. La soluzione più performante è creare un "indice inverso". Potresti aggiungere una action Convex (actions/pages.ts) che, ogni volta che una pagina viene salvata (updatePageMutation), analizza il suo content JSON, estrae tutti i pageLink e blockLink e salva i collegamenti in una nuova tabella (db.links) strutturata come { fromPageId: "...", toPageId: "...", blockId: "...", snippet: "..." }.
+
+Query (Convex): Crei una nuova query in queries/pages.ts (es. getBacklinks(pageId)) che usa l'indice per trovare tutti i record in db.links dove toPageId corrisponde alla pagina attiva.
+
+Frontend (React):
+
+In App.tsx, usi la nuova query useQuery(api.pages.getBacklinks, { pageId: activePage._id }).
+
+Passi la lista di backlinks risultante come prop a <Editor />.
+
+All'interno di Editor.tsx, crei un nuovo componente React (<BacklinksList />) e lo renderizzi sotto <EditorContent />. Questo componente riceve la lista e la formatta in link cliccabili.
+
+2. Mappa dei Collegamenti (Graph View)
+Questa è la visualizzazione macro dei Backlinks. Permette all'utente di "volare" sopra la sua intera base di conoscenza e vederne la struttura.
+
+Su Cosa Si Basa: Sulla Teoria dei Grafi. Ogni pagina è un "nodo" (un punto) e ogni link (PageLink o BlockLink) è un "arco" (una linea) che collega due nodi. Questo permette di identificare visivamente "cluster" di argomenti (nodi con molti collegamenti) e note "orfane" (nodi isolati).
+
+Flusso Utente:
+
+L'utente clicca su una nuova icona (es. "Mappa") nella Sidebar.tsx.
+
+La vista principale dell'editor viene sostituita da un nuovo componente a schermo intero (<GraphView />).
+
+L'utente vede una "costellazione" di punti (le sue pagine). Può zoomare, trascinare i nodi per esplorare.
+
+Passando il mouse su un nodo, ne vede il titolo.
+
+Cliccando su un nodo, l'app lo seleziona (es. handleSelectPage(nodeId)) chiudendo la mappa e aprendo quella pagina.
+
+Panoramica di Implementazione:
+
+Libreria: Installa una libreria di visualizzazione di grafi, per esempio react-force-graph (molto performante e basata su Three.js/WebGL).
+
+Query (Convex): Crei una query (es. getGraphData) che restituisce tutte le pagine (_id e title) e tutti i link (fromPageId, toPageId) estratti dall'indice che hai creato per i Backlinks (vedi Proposta 1).
+
+Frontend (React):
+
+In App.tsx, aggiungi uno stato (es. [viewMode, setViewMode]) per alternare tra "editor" e "graph".
+
+Quando viewMode === 'graph', renderizzi il nuovo componente <GraphView />.
+
+GraphView.tsx chiama la query getGraphData, formatta i risultati in due array (nodes e links) e li passa al componente <ReactForceGraph />.
+
+Gestisci l'evento onNodeClick del grafo per chiamare handleSelectPage (che dovrai passare come prop).
+
+3. Spaced Repetition (Flashcards Integrate)
+Questo trasforma l'app da un archivio passivo a uno strumento di studio attivo, rispondendo alla tua richiesta di "spaced repetition".
+
+Su Cosa Si Basa: Su algoritmi di ripetizione dilazionata (come l'algoritmo SM-2, usato da Anki). Il principio è che per memorizzare un'informazione, la si deve ripassare a intervalli crescenti, appena prima di dimenticarla.
+
+Flusso Utente:
+
+Creazione: Mentre scrive in Editor.tsx, l'utente digita un comando (es. /flashcard o /card).
+
+Questo inserisce un nuovo blocco Tiptap personalizzato con due campi: "Domanda" (Fronte) e "Risposta" (Retro).
+
+Studio: L'utente visita una nuova pagina "Ripasso" (un link nella Sidebar.tsx).
+
+L'app mostra tutte le card "scadute". Mostra solo il campo "Domanda".
+
+L'utente pensa alla risposta, poi clicca "Mostra Risposta".
+
+Valuta la sua performance cliccando uno di tre pulsanti: "Sbagliato" (da rivedere tra 1 min), "Difficile" (da rivedere tra X min), "Corretto" (da rivedere tra Y giorni).
+
+Panoramica di Implementazione:
+
+Database (Convex): Crei una nuova tabella db.flashcards con campi come: pageId, blockId, domanda (testo), risposta (testo), dataScadenza, livelloFacilita, intervallo.
+
+Tiptap:
+
+In Editor.tsx, crei una nuova estensione Tiptap (FlashcardNode).
+
+Questa estensione usa ReactNodeViewRenderer per renderizzare un componente React (FlashcardComponent.tsx) con due EditorContent interni (per Domanda e Risposta).
+
+Quando il contenuto della card cambia, onUpdate nel componente Tiptap chiama una useMutation Convex per creare/aggiornare il record in db.flashcards.
+
+Frontend (React):
+
+Crei un nuovo componente "pagina" (ReviewPage.tsx) che viene mostrato in App.tsx quando selezionato.
+
+ReviewPage.tsx usa una query Convex: useQuery(api.flashcards.getDueCards).
+
+Questa query restituisce le card dove dataScadenza <= Date.now().
+
+Implementi la logica dell'algoritmo SM-2 in una mutation Convex (answerCard) che ricalcola dataScadenza, intervallo e livelloFacilita in base al pulsante premuto dall'utente.
+
+4. Assistente AI nel Blocco
+Questa è la prima integrazione AI. Porta la potenza dei LLM direttamente nell'esperienza di scrittura, blocco per blocco.
+
+Su Cosa Si Basa: Sull'integrazione di un LLM (come Gemini o GPT) tramite API. L'idea è di usare l'IA per agire sul testo selezionato o generare nuovo testo in un blocco specifico.
+
+Flusso Utente:
+
+L'utente evidenzia del testo (o semplicemente posiziona il cursore su un blocco vuoto).
+
+Appare una "barra degli strumenti AI" (oppure preme una scorciatoia, es. Ctrl+J).
+
+L'utente vede un menu di comandi: "Migliora scrittura", "Correggi grammatica", "Traduci in...", "Riassumi", "Rendi più lungo", "Trova action items".
+
+Oppure, su un blocco vuoto, può scrivere un prompt: "Scrivi una mail per..." e premere "Genera".
+
+L'app chiama l'API AI e sostituisce il testo del blocco (o inserisce nuovo testo) con il risultato.
+
+Panoramica di Implementazione:
+
+Backend (Convex): È fondamentale che la chiamata all'API AI avvenga nel backend (in un'Azione Convex) per proteggere la tua API key.
+
+Crei una nuova action Convex in actions/ai.ts (es. runAiCommand(command, text)).
+
+Questa action usa fetch per chiamare l'API di Gemini/OpenAI con il prompt e il testo, e restituisce il risultato.
+
+Tiptap:
+
+Aggiungi un'estensione Tiptap (es. BubbleMenu) che appare quando l'utente seleziona del testo.
+
+Questo menu è un componente React (AiBubbleMenu.tsx) con i pulsanti dei comandi.
+
+Frontend (React):
+
+Quando l'utente clicca "Migliora scrittura", il componente chiama una useAction Convex: runAiCommand({ command: "improve", text: editor.state.selection.content() }).
+
+Quando l'azione restituisce il testo migliorato, usi editor.chain().focus().insertContent(result).run() per rimpiazzare la selezione.
+
+5. Ricerca Semantica (AI Search)
+Questa è la seconda integrazione AI e rivoluziona il recupero delle informazioni. Invece di cercare per parole chiave, l'utente cerca per concetti.
+
+Su Cosa Si Basa: Sui "Vector Embeddings". L'idea è di usare un modello AI per convertire ogni pagina (o ogni blocco) in un "vettore" (un lungo array di numeri) che ne rappresenta il significato semantico.
+
+Testi simili avranno vettori simili nello spazio matematico.
+
+Il tuo database (Convex) ha un Vector Database integrato, rendendo questa funzione perfettamente realizzabile.
+
+Flusso Utente:
+
+L'utente apre una barra di ricerca (es. Ctrl+P).
+
+Invece di scrivere una parola chiave precisa (es. "Logica di business Convex"), può scrivere una domanda in linguaggio naturale (es. "Dove ho scritto di come aggiornare il database?").
+
+L'app non cerca quelle parole esatte, ma il significato della domanda.
+
+I risultati mostrati sono i blocchi o le pagine che semanticamente rispondono meglio alla domanda, anche se non contengono le stesse parole.
+
+Panoramica di Implementazione:
+
+Database (Convex):
+
+Modifichi la tabella pages (o meglio, crei una tabella chunks) per includere un campo vettoriale. In schema.ts: chunks: defineTable({ pageId: v.id("pages"), text: v.string(), embedding: v.array(v.float64()) }).vectorIndex("by_embedding", { vectorField: "embedding", dimensions: 768 }) (o la dimensione richiesta dal modello di embedding).
+
+Backend (Convex):
+
+Crei un'Azione (generateEmbeddings) che viene eseguita ogni volta che una pagina viene salvata.
+
+Questa azione "spezzetta" il contenuto della pagina in blocchi (chunks), chiama un'API di embedding (es. Google text-embedding-004) per ogni blocco, e salva il testo e il vettore in db.chunks.
+
+Ricerca (Convex):
+
+Crei una nuova action di ricerca (searchSemantic(queryText)).
+
+Questa action prima chiama l'API di embedding per convertire la domanda dell'utente in un vettore.
+
+Poi, usa la query vettoriale di Convex: ctx.db.vectorSearch("chunks", "by_embedding", { vector: queryVector, limit: 10 }).
+
+Restituisce i 10 chunks di testo più simili.
+
+Frontend (React):
+
+Crei un componente "Command Palette" (SearchModal.tsx).
+
+Quando l'utente digita, chiami l'azione searchSemantic e mostri i risultati (i chunks di testo) in una lista. Cliccando su un risultato, chiami handleSelectBlock per navigare direttamente a quel blocco in quella pagina.

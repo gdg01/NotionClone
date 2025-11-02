@@ -1,0 +1,5 @@
+{
+  "name": "Notion Clone with Tiptap",
+  "description": "A minimalist, Notion-like editor application built with React and Tiptap. It features a WYSIWYG editor, slash commands for quick formatting, and nested page organization in a sidebar.",
+  "requestFramePermissions": []
+}
