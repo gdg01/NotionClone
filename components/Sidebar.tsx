@@ -1,4 +1,4 @@
-// File: src/components/Sidebar.tsx (Modificato)
+// File: src/components/Sidebar.tsx (SOSTITUZIONE COMPLETA)
 
 import React, { useState, useRef } from 'react';
 import type { Page } from '../App';
@@ -13,6 +13,7 @@ import {
   ChevronDoubleLeftIcon,
   GlobeIcon,
   FilterIcon,
+  CheckSquareIcon, // <-- 1. IMPORTA LA NUOVA ICONA
 } from './icons';
 import { EmojiPicker } from './EmojiPicker';
 import { useQuery } from 'convex/react';
@@ -37,7 +38,8 @@ interface SidebarProps {
   toggleTheme: () => void;
   onOpenGraphView: () => void;
   onOpenFlowView: (pageId: string) => void;
-  onOpenFlowAndEditor: (pageId: string) => void; // <-- 1. AGGIUNGI LA NUOVA PROP
+  onOpenFlowAndEditor: (pageId: string) => void;
+  onOpenTasksView: () => void; // <-- 2. AGGIUNGI LA NUOVA PROP
 }
 
 // --- Interfaccia props per PageItem (MODIFICATA) ---
@@ -54,21 +56,21 @@ interface PageItemProps {
   ) => void;
   activePageId: string | null;
   onOpenFlowView: (pageId: string) => void;
-  onOpenFlowAndEditor: (pageId: string) => void; // <-- 2. AGGIUNGI LA NUOVA PROP
+  onOpenFlowAndEditor: (pageId: string) => void;
 }
 
-// --- Componente PageItem (MODIFICATO) ---
+// --- Componente PageItem (Invariato rispetto all'ultima versione) ---
 const PageItem: React.FC<PageItemProps> = ({
   page,
   level,
   onAddPage,
   onDeletePage,
   onSelectPage,
-  onOpenInSplitView, // Questa prop non è più usata per Ctrl+Click, ma la lasciamo per ora
+  onOpenInSplitView,
   onUpdatePage,
   activePageId,
   onOpenFlowView,
-  onOpenFlowAndEditor, // <-- 3. RICEVI LA NUOVA PROP
+  onOpenFlowAndEditor,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -86,24 +88,14 @@ const PageItem: React.FC<PageItemProps> = ({
     setIsPickerOpen(true);
   };
 
-// --- 4. MODIFICA CHIAVE QUI ---
   const handlePageClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (e.metaKey || e.ctrlKey) {
-      // Chiama la nuova funzione "combo" <- Commento originale
-      // onOpenFlowAndEditor(page._id);     <- QUESTA È LA RIGA DA CAMBIARE
-
-      // --- MODIFICA ---
-      // Chiama la funzione per aprire in split view
       onOpenInSplitView(page._id);
-      // --- FINE MODIFICA ---
-
     } else {
-      // Comportamento normale
       onSelectPage(page._id);
     }
   };
-  // --- FINE MODIFICA ---
 
   return (
     <div>
@@ -117,7 +109,7 @@ const PageItem: React.FC<PageItemProps> = ({
       >
         <div
           className="flex items-center flex-grow min-w-0"
-          onClick={handlePageClick} // <-- Ora usa la logica aggiornata
+          onClick={handlePageClick}
         >
           {hasChildren ? (
             <ChevronRightIcon
@@ -133,7 +125,6 @@ const PageItem: React.FC<PageItemProps> = ({
             <div className="w-4 h-4 mr-1 flex-shrink-0" />
           )}
 
-          {/* ... (logica icona e titolo invariata) ... */}
            <div className="relative">
             <button
               ref={iconRef}
@@ -159,7 +150,6 @@ const PageItem: React.FC<PageItemProps> = ({
           <span className="truncate flex-grow">{page.title || 'Untitled'}</span>
         </div>
         <div className="flex items-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* ... (pulsanti flow, trash, add invariati) ... */}
            <button
             onClick={(e) => {
               e.stopPropagation();
@@ -191,7 +181,6 @@ const PageItem: React.FC<PageItemProps> = ({
         </div>
       </div>
 
-      {/* ... (logica childPages invariata) ... */}
       {isExpanded && childPages && (
         <div>
           {childPages.map((child) => (
@@ -206,7 +195,7 @@ const PageItem: React.FC<PageItemProps> = ({
               onUpdatePage={onUpdatePage}
               activePageId={activePageId}
               onOpenFlowView={onOpenFlowView}
-              onOpenFlowAndEditor={onOpenFlowAndEditor} // <-- 5. PASSA LA PROP AI FIGLI
+              onOpenFlowAndEditor={onOpenFlowAndEditor}
             />
           ))}
         </div>
@@ -237,7 +226,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   toggleTheme,
   onOpenGraphView,
   onOpenFlowView,
-  onOpenFlowAndEditor, // <-- 6. RICEVI LA PROP DA APP.TSX
+  onOpenFlowAndEditor,
+  onOpenTasksView, // <-- 3. RICEVI LA PROP DA APP.TSX
 }) => {
   const topLevelPages = useQuery(api.pages.getSidebar, {
     parentPage: undefined,
@@ -245,7 +235,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* ... (pulsante apri/chiudi e header invariati) ... */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`fixed top-4 left-4 z-30 p-2 rounded-md bg-white/50 dark:bg-black/50 backdrop-blur-sm hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors ${
@@ -289,11 +278,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onUpdatePage={onUpdatePage}
                 activePageId={activePageId}
                 onOpenFlowView={onOpenFlowView}
-                onOpenFlowAndEditor={onOpenFlowAndEditor} // <-- 7. PASSA LA PROP AL PRIMO LIVELLO
+                onOpenFlowAndEditor={onOpenFlowAndEditor}
               />
             ))}
         </nav>
-        {/* ... (footer e pulsanti add, graph, theme invariati) ... */}
+        
          <div className="p-2 border-t border-notion-border dark:border-notion-border-dark flex items-center space-x-2">
           <button
             onClick={() => onAddPage(null)}
@@ -302,6 +291,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <AddPageIcon className="w-4 h-4 mr-2" />
             Add a new page
           </button>
+
+          {/* --- 4. MODIFICA QUI: Aggiungi il pulsante Tasks --- */}
+          <button
+            onClick={onOpenTasksView}
+            className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
+            aria-label="Open Tasks View"
+            title="Tasks View"
+          >
+            <CheckSquareIcon className="w-4 h-4" />
+          </button>
+          {/* --- FINE MODIFICA --- */}
+
           <button
             onClick={onOpenGraphView}
             className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"

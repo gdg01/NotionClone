@@ -1,4 +1,4 @@
-// File: src/App.tsx (Corretto e Unificato)
+// File: src/App.tsx (SOSTITUZIONE COMPLETA)
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useConvexAuth, useQuery, useMutation, useConvex } from 'convex/react';
@@ -16,6 +16,7 @@ import { compare } from 'fast-json-patch';
 import { SpotlightSearch } from './components/SpotlightSearch';
 import { GraphView } from './components/GraphView';
 import { FlowView } from './components/FlowView';
+import { TasksView } from './components/TasksView'; // <-- 1. IMPORTA LA NUOVA VISTA
 export type Page = Doc<"pages">;
 
 
@@ -69,31 +70,19 @@ export default function App() {
   const patchContentMutation = useMutation(api.pages.patchContent);
   
   const lastSavedContent = useRef<any>(null);
-  const lastSavedPageId = useRef<string | null>(null); // <-- AGGIUNGI QUESTO
+  const lastSavedPageId = useRef<string | null>(null);
   
-  console.log("Stato caricamento App:", {
-    isAuthenticated,
-    isLoading,
-    convex_is_defined: !!convex,
-    pages_is_defined: pages !== undefined,
-    allPagesMetadata_is_defined: allPagesMetadata !== undefined,
-    pages_value: pages,
-    allPagesMetadata_value: allPagesMetadata,
-  });
-
-  // --- STATO DI SALVATAGGIO ---
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("Idle");
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
   const [lastModified, setLastModified] = useState<number | null>(null); 
   const saveStatusTimer = useRef<number | null>(null);
   
-  // --- MODIFICA 1: Sostituito dirtyContent con dirtyPage ---
   const dirtyPage = useRef<{ pageId: string, content: any } | null>(null);
   
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
 
   const [activePageId, setActivePageId] = useState<string | null>(null);
-  const activePageIdRef = useRef(activePageId); // <-- 1. AGGIUNGI QUESTO
+  const activePageIdRef = useRef(activePageId);
   const [scrollToBlockId, setScrollToBlockId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [theme, setTheme] = useState(() => {
@@ -113,6 +102,8 @@ export default function App() {
   const [isFlowViewOpen, setIsFlowViewOpen] = useState(false);
   const [flowViewPageId, setFlowViewPageId] = useState<string | null>(null);
 
+  const [isTasksViewOpen, setIsTasksViewOpen] = useState(false); // <-- 2. AGGIUNGI NUOVO STATO
+
   const [mainPanelWidth, setMainPanelWidth] = useState(75); 
 
 
@@ -126,23 +117,13 @@ export default function App() {
     splitViewPage ? { pageId: splitViewPage.pageId as Id<"pages"> } : "skip"
   );
 
-useEffect(() => {
-      // --- INIZIO MODIFICA ---
-      // Esegui SOLO se activePageId è definito
-      // E il contenuto NON è undefined (cioè la query è tornata)
+  // ... (Tutta la logica di useEffect, useMemo, saveContent, handleContentChange, handleSaveNow... rimane INVARIATA) ...
+
+  useEffect(() => {
       if (activePageContentString !== undefined && activePageId) {
-        
-         // Se l'ID nel ref è DIVERSO dall'ID nello stato,
-         // significa che 'activePageId' è appena cambiato
-         // ma 'activePageContentString' è ANCORA OBSOLETO. Non fare nulla.
          if (activePageIdRef.current !== activePageId) {
-           // Questo è il render "stale". Ignoralo.
            return;
          }
-         
-         // Se sono UGUALI, 'activePageId' è stabile
-         // e 'activePageContentString' è il contenuto corretto per quell'ID.
-         // Ora possiamo salvare nei nostri ref in sicurezza.
          setLastSaveTime(new Date()); 
          setLastModified(null);
          try {
@@ -153,12 +134,10 @@ useEffect(() => {
            lastSavedPageId.current = activePageId; 
          }
       }
-      // --- FINE MODIFICA ---
   }, [activePageContentString, activePageId]);
 
-    // (subito dopo l'useEffect per activePageContentString, riga 140 circa)
   useEffect(() => {
-    activePageIdRef.current = activePageId; // <-- 2. AGGIUNGI QUESTO BLOCCO
+    activePageIdRef.current = activePageId;
   }, [activePageId]);
 
   const activePageContent = useMemo(() => {
@@ -191,36 +170,25 @@ useEffect(() => {
 
   const blockPreviewsMap = useMemo(() => {
     if (!allPagesMetadata) return new Map<string, string>();
-    // (Logica rimossa come da file originale)
     return new Map<string, string>();
   }, [allPagesMetadata]);
 
 
-  // --- LOGICA DI SALVATAGGIO (MODIFICATA) ---
-
-  // --- MODIFICA 4: Avvolto in useCallback e aggiornato per usare dirtyPage ---
   const saveContent = useCallback((pageId: Id<'pages'>, content: any): Promise<void> => {
     if (saveStatusTimer.current) {
         clearTimeout(saveStatusTimer.current);
     }
     setSaveStatus("Saving");
 
-    // --- INIZIO MODIFICA ---
-    // Determina il contenuto "base" contro cui calcolare il patch.
-    // Se l'ID della pagina che stiamo salvando NON corrisponde all'ID dell'ultimo
-    // contenuto che abbiamo memorizzato, non possiamo creare un patch affidabile.
-    // In tal caso, usiamo un oggetto vuoto per forzare un "full update" (lento ma sicuro).
     const baseContent = (lastSavedPageId.current === pageId) 
       ? lastSavedContent.current 
       : {}; 
     
     const patch = compare(baseContent || {}, content);
-    // --- FINE MODIFICA ---
 
     if (patch.length === 0) {
         setSaveStatus("Saved");
         setLastSaveTime(new Date());
-        // Il contenuto è già corretto, ma aggiorniamo l'ID per sicurezza
         lastSavedPageId.current = pageId; 
         dirtyPage.current = null;
         setLastModified(null);
@@ -234,12 +202,8 @@ useEffect(() => {
     }).then(() => {
         setSaveStatus("Saved");
         setLastSaveTime(new Date());
-        
-        // --- AGGIORNA ENTRAMBI I REF ---
         lastSavedContent.current = content;
         lastSavedPageId.current = pageId; 
-        // --- FINE ---
-        
         dirtyPage.current = null;
         setLastModified(null);
         saveStatusTimer.current = window.setTimeout(() => setSaveStatus("Idle"), 2000);
@@ -254,18 +218,16 @@ useEffect(() => {
     debounce(saveContent, 15000)
   );
 
-  // --- MODIFICA 2: Aggiornato handleContentChange ---
   const handleContentChange = (pageId: Id<'pages'>, content: any) => {
     if (saveStatusTimer.current) {
         clearTimeout(saveStatusTimer.current);
     }
     setSaveStatus("Dirty");
     setLastModified(Date.now()); 
-    dirtyPage.current = { pageId, content }; // <-- Aggiornato
+    dirtyPage.current = { pageId, content };
     debouncedSaveRef.current(pageId, content);
   };
 
-  // --- MODIFICA 3: Aggiornato handleSaveNow ---
   const handleSaveNow = (): Promise<void> => {
     debouncedSaveRef.current.cancel(); 
     
@@ -273,28 +235,35 @@ useEffect(() => {
        return Promise.resolve();
     }
     
-    // Salva la pagina corretta, non per forza quella attiva
     const { pageId, content } = dirtyPage.current;
     
     return saveContent(pageId as Id<'pages'>, content);
   };
-  
-  // --- FINE LOGICA DI SALVATAGGIO ---
 
+  // --- GESTIONE PANNELLI (MODIFICATA) ---
 
-  // --- GESTIONE PANNELLI (INVARIATA) ---
+  // --- 3. CREA IL HANDLER PER APRIRE LA VISTA TASK ---
+  const handleOpenTasksView = () => {
+    // Chiudi tutte le altre viste "speciali"
+    setIsGraphViewOpen(false); // Overlay
+    setIsFlowViewOpen(false); // Sostituzione Main
+    setSplitViewPage(null);     // Pannello laterale
+    setIsAiPanelOpen(false);    // Pannello laterale
+    
+    // Apri la vista Task
+    setIsTasksViewOpen(true);
+  };
 
   const handleOpenAiPanel = () => {
     const editor = editorRef.current?.getEditor();
     if (!editor) return;
-
     const { from, to } = editor.state.selection;
     const selectedText = editor.state.doc.textBetween(from, to).trim();
-
     setAiInitialText(selectedText || "");
     setSplitViewPage(null); 
     setIsAiPanelOpen(true);
     setIsSidebarOpen(false); 
+    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
   };
 
   const handleCloseAiPanel = () => {
@@ -309,27 +278,26 @@ useEffect(() => {
     setIsAiPanelOpen(false); 
     setSplitViewPage({ pageId, blockId });
     setIsSidebarOpen(false); 
+    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
   };
 
   const handleOpenFlowAndEditor = async (pageId: string) => {
-    console.log("DEBUG [App]: handleOpenFlowAndEditor called with pageId:", pageId);
     if (saveStatus === 'Dirty') {
       await handleSaveNow();
     }
-    
     setFlowViewPageId(pageId);
     setIsFlowViewOpen(true);
-    
     setSplitViewPage({ pageId: pageId, blockId: null });
-    
     setIsAiPanelOpen(false); 
     setIsSidebarOpen(false); 
+    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
   };
 
   const handleCloseSplitView = () => {
     setSplitViewPage(null);
   };
 
+  // --- 4. MODIFICA handleSelectPage per chiudere la TasksView ---
   const handleSelectPage = async (pageId: string | null) => { 
     if (saveStatus === 'Dirty') {
        await handleSaveNow();
@@ -338,9 +306,9 @@ useEffect(() => {
     setScrollToBlockId(null);
     setIsAiPanelOpen(false); 
     setSplitViewPage(null); 
-    
     setIsFlowViewOpen(false);
     setFlowViewPageId(null);
+    setIsTasksViewOpen(false); // <-- AGGIUNGI QUESTA RIGA
     
     if (pageId) {
       window.history.pushState(null, '', `#${pageId}`);
@@ -362,12 +330,11 @@ useEffect(() => {
     }
     setIsAiPanelOpen(false); 
     setSplitViewPage(null); 
+    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
     window.history.pushState(null, '', `#${pageId}:${blockId}`);
   };
 
-  // --- FINE GESTIONE PANNELLI ---
-
-  // --- LOGICA DI RIDIMENSIONAMENTO (INVARIATA) ---
+  // --- (Logica di ridimensionamento e useEffect vari invariati) ---
   
   const isSidePanelOpen = !!splitViewPage || isAiPanelOpen;
 
@@ -375,28 +342,22 @@ useEffect(() => {
       e.preventDefault();
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-      
       const startX = e.clientX;
       const startMainWidth = mainPanelRef.current!.offsetWidth;
       const containerWidth = layoutRef.current!.offsetWidth;
-
       const handleMouseMove = (me: MouseEvent) => {
           const dx = me.clientX - startX;
           let newMainWidth = startMainWidth + dx;
-          
           let newMainPercent = (newMainWidth / containerWidth) * 100;
           newMainPercent = Math.max(25, Math.min(85, newMainPercent)); 
-
           setMainPanelWidth(newMainPercent);
       };
-
       const handleMouseUp = () => {
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
       };
-
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
   };
@@ -407,10 +368,6 @@ useEffect(() => {
       }
   }, [isSidePanelOpen]);
 
-  // --- FINE LOGICA DI RIDIMENSIONAMENTO ---
-
-
-  // --- HOOKS useEffect (INVARIATI) ---
   useEffect(() => {
     if (pages && pages.length > 0 && !activePageId) {
         const firstPage = pages.find(p => !p.isArchived);
@@ -429,7 +386,7 @@ useEffect(() => {
 
   useEffect(() => {
     const handleHashChange = () => {
-      if (splitViewPage || isAiPanelOpen) return; 
+      if (splitViewPage || isAiPanelOpen || isTasksViewOpen) return; // <-- 5. AGGIUNGI isTasksViewOpen
 
       const hash = window.location.hash.substring(1);
       if (!hash) {
@@ -456,7 +413,7 @@ useEffect(() => {
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [allPagesMetadata, activePageId, splitViewPage, isAiPanelOpen, pages]);
+  }, [allPagesMetadata, activePageId, splitViewPage, isAiPanelOpen, pages, isTasksViewOpen]); // <-- 6. AGGIUNGI isTasksViewOpen
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -473,22 +430,18 @@ useEffect(() => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
-// --- MODIFICA 5: Funzione addPage completamente riscritta ---
-const addPage = useCallback(async (
-    parentId: string | null = null, 
-    options: { navigate?: boolean, insertLink?: boolean, title?: string } = { navigate: true, insertLink: true }
-  ): Promise<Page | undefined> => {
+  // ... (Tutta la logica 'addPage', 'deletePage', 'updatePageMetadata', 'handleTitleChange', 'activePage', 'splitPage' rimane INVARIATA) ...
+
+  const addPage = useCallback(async (
+      parentId: string | null = null, 
+      options: { navigate?: boolean, insertLink?: boolean, title?: string } = { navigate: true, insertLink: true }
+    ): Promise<Page | undefined> => {
     
-    // --- INIZIO CORREZIONE: Cattura lo stato all'inizio ---
-    // 1. Cattura l'editor CORRETTO. 
-    //    È l'editor principale SOLO SE l'ID genitore corrisponde all'ID attivo.
     const editorInstance = (parentId === activePageId && editorRef.current) 
       ? editorRef.current.getEditor() 
       : null;
       
-    // 2. Cattura l'ID genitore in una variabile locale per sicurezza
     const pageIdThatIsParent = parentId; 
-    // --- FINE CORREZIONE ---
 
     if (!convex) {
       console.error("addPage fallito: il client Convex non è inizializzato.");
@@ -496,7 +449,7 @@ const addPage = useCallback(async (
     }
 
     if (saveStatus === 'Dirty') {
-       await handleSaveNow(); // <-- Ora è sicuro grazie alle modifiche 1-3
+       await handleSaveNow();
     }
     
     const newPageId = await createPage({
@@ -504,11 +457,8 @@ const addPage = useCallback(async (
         parentPage: pageIdThatIsParent ?? undefined,
     });
     
-    // 4. --- LOGICA DI LINKING (MODIFICATA) ---
-    // Esegui solo se parentId esiste E insertLink non è esplicitamente false
     if (pageIdThatIsParent && options.insertLink !== false) {
       
-      // --- CORREZIONE: Nodi corretti (Fix RangeError) ---
       const newLinkNode = { 
         type: 'pageLink', 
         attrs: { pageId: newPageId, title: options.title || 'Untitled' } 
@@ -517,14 +467,11 @@ const addPage = useCallback(async (
         type: 'paragraph',
         content: [
           newLinkNode,
-          { type: 'text', text: ' ' } // Aggiungi uno spazio dopo il link
+          { type: 'text', text: ' ' }
         ]
       };
       const newEmptyParagraphNode = { type: 'paragraph' };
-      // --- FINE CORREZIONE ---
 
-      // --- CORREZIONE: Usa variabili catturate (Fix Race Condition) ---
-      // Caso A: Avevamo un editor valido per il genitore all'INIZIO.
       if (editorInstance) {
         editorInstance.chain().focus().insertContentAt(editorInstance.state.doc.content.size, [
           paragraphWithLink,
@@ -533,7 +480,6 @@ const addPage = useCallback(async (
         
         await saveContent(pageIdThatIsParent as Id<'pages'>, editorInstance.getJSON());
       } 
-      // Caso B: Non avevamo un editor (es. da Sidebar o FlowView)
       else {
         try {
           const parentContentString = await convex.query(api.pages.getContent, { pageId: pageIdThatIsParent as Id<"pages"> });
@@ -558,15 +504,12 @@ const addPage = useCallback(async (
           console.error("Fallimento nell'aggiornare la pagina madre da addPage", e);
         }
       }
-      // --- FINE CORREZIONE ---
     }
     
-    // 5. Navigazione
     if (options.navigate) {
       handleSelectPage(newPageId);
     }
     
-    // 6. Ritorno oggetto Pagina
      return { 
         _id: newPageId, 
         title: options.title || 'Untitled', 
@@ -579,9 +522,9 @@ const addPage = useCallback(async (
   }, [
     createPage, 
     saveStatus, 
-    activePageId, // <-- Aggiunta dipendenza
+    activePageId,
     convex, 
-    saveContent, // <-- Ora è un useCallback stabile
+    saveContent,
     updatePageMutation
   ]);
 
@@ -624,7 +567,6 @@ const addPage = useCallback(async (
   const splitPage = useMemo(() => allPagesMetadata?.find((p) => p._id === splitViewPage?.pageId), [allPagesMetadata, splitViewPage]);
 
 
-  // --- BLOCCHI DI RENDER (INVARIATI) ---
   if (isLoading) {
       return <Spinner />;
     }
@@ -645,7 +587,6 @@ const addPage = useCallback(async (
     <div className="flex h-screen w-full font-sans bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark transition-colors duration-200 overflow-hidden">
         <>
           <Sidebar
-            // Chiama addPage con navigate: true (insertLink sarà true di default)
             onAddPage={(parentId) => addPage(parentId, { navigate: true })}
             onDeletePage={deletePage}
             onSelectPage={handleSelectPage}
@@ -662,6 +603,7 @@ const addPage = useCallback(async (
               setIsFlowViewOpen(true);
             }}
             onOpenFlowAndEditor={handleOpenFlowAndEditor}
+            onOpenTasksView={handleOpenTasksView} // <-- 7. PASSA IL HANDLER ALLA SIDEBAR
             />
 
           <div 
@@ -688,22 +630,25 @@ const addPage = useCallback(async (
                 className={`h-full ${!isSidePanelOpen ? 'w-full' : 'flex-shrink-0'}`}
                 style={{ width: isSidePanelOpen ? `${mainPanelWidth}%` : '100%' }}
               >
-                {isFlowViewOpen && flowViewPageId ? (
+                {/* --- 8. MODIFICA LOGICA DI RENDER --- */}
+                {isTasksViewOpen ? (
+                  <TasksView
+                    onClose={() => setIsTasksViewOpen(false)}
+                    onSelectPage={handleSelectPage}
+                    allPages={allPagesMetadata as Page[]}
+                  />
+                ) : isFlowViewOpen && flowViewPageId ? (
                   <FlowView
                     startPageId={flowViewPageId}
                     onSelectPage={handleSelectPage}
                     onClose={() => {
-                      // Chiudi sia Flow che lo split (se aperto)
                       setIsFlowViewOpen(false);
                       setFlowViewPageId(null);
                       setSplitViewPage(null);
                     }}
                     onOpenInSplitView={handleOpenInSplitView}
                     isSplitMode={!!splitViewPage} 
-                    
-                    // --- Chiama la nuova funzione addPage ---
                     onCreateChildPage={async (parentId) => {
-                      // navigate: false (non naviga), insertLink: true (default)
                       const newPage = await addPage(parentId, { navigate: false });
                       return newPage?._id;
                     }}
@@ -717,13 +662,10 @@ const addPage = useCallback(async (
                     pages={allPagesMetadata as Page[]} 
                     pageTitlesMap={pageTitlesMap}
                     blockPreviewsMap={blockPreviewsMap}
-                    
                     onUpdatePage={updatePageMetadata} 
                     onTitleChange={(title) => handleTitleChange(activePage._id, title)}
                     onContentChange={(content) => handleContentChange(activePage._id, content)}
-                    
                     onSelectPage={handleSelectPage}
-                    // --- passa le opzioni, incluso insertLink ---
                     onCreateSubPage={(options) => addPage(activePage._id, options)}
                     scrollToBlockId={scrollToBlockId}
                     onDoneScrolling={() => setScrollToBlockId(null)}
@@ -744,7 +686,6 @@ const addPage = useCallback(async (
                     <h2 className="text-2xl font-semibold mb-4">Nessuna pagina selezionata</h2>
                     <p className="mb-6">Crea una nuova pagina per iniziare.</p>
                     <button
-                      // Chiama addPage (insertLink sarà true di default)
                       onClick={() => addPage(null, { navigate: true })}
                       className="flex items-center px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 dark:bg-notion-hover-dark dark:text-notion-text-dark dark:hover:bg-notion-active-dark transition-colors"
                     >
@@ -768,7 +709,7 @@ const addPage = useCallback(async (
                 />
               </main>
 
-              {/* Maniglia, SplitView e AiPanel (invariati) */}
+              {/* ... (Pannelli laterali invariati) ... */}
               {isSidePanelOpen && (
                 <div
                   className="w-2 h-full cursor-col-resize flex-shrink-0 group flex justify-center"
@@ -798,11 +739,9 @@ const addPage = useCallback(async (
                     pages={allPagesMetadata as Page[]}
                     pageTitlesMap={pageTitlesMap}
                     blockPreviewsMap={blockPreviewsMap}
-
                     onUpdatePage={updatePageMetadata}
                     onTitleChange={(title) => handleTitleChange(splitPage._id, title)}
                     onContentChange={(content) => handleContentChange(splitViewPage.pageId as Id<"pages">, content)}
-                    
                     onSelectPage={handleSelectPage} 
                     onSelectBlock={handleSelectBlock}
                     onCreateSubPage={(options) => addPage(splitPage._id, options)}

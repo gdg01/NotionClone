@@ -16,6 +16,7 @@ import type * as migration from "../migration.js";
 import type * as pages from "../pages.js";
 import type * as search from "../search.js";
 import type * as tags from "../tags.js";
+import type * as tasks from "../tasks.js";
 
 import type {
   ApiFromModules,
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   pages: typeof pages;
   search: typeof search;
   tags: typeof tags;
+  tasks: typeof tasks;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
