@@ -58,7 +58,7 @@ import { BacklinksList, EnrichedBacklink } from './BacklinksList';
 //convex 
 import { useMutation, useQuery } from 'convex/react'; 
 import { api } from '../convex/_generated/api'; 
-import { getTagClasses, TAG_COLORS } from '../lib/TagColors';
+import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc } from '../convex/_generated/dataModel';
 
 // --- Componente Helper per i Tag (Invariato) ---

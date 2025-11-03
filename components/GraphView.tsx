@@ -18,8 +18,7 @@ import {
     PauseIcon
 } from './icons'; // Assicurati che PlayIcon e PauseIcon siano importati
 import { Doc } from '../convex/_generated/dataModel';
-import { getTagClasses } from '../lib/tagColors';
-
+import { getTagClasses } from '../lib/TG';
 // Mappa Colori RGB per Canvas (invariata)
 const CANVAS_COLOR_MAP: Record<string, string> = {
   gray:   '156, 163, 175', // text-gray-400
