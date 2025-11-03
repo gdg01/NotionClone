@@ -55,11 +55,10 @@ import type { SaveStatus } from './BreadcrumbNav';
 // --- MODIFICA: Importa TextSelectionMenu ---
 import { TextSelectionMenu } from './TextSelectionMenu'; 
 import { BacklinksList, EnrichedBacklink } from './BacklinksList'; 
-import { Image, Tag, X } from './icons';
 //convex 
 import { useMutation, useQuery } from 'convex/react'; 
 import { api } from '../convex/_generated/api'; 
-import { getTagClasses, TAG_COLORS } from '../lib/tagColors';
+import { getTagClasses, TAG_COLORS } from '../lib/TagColors';
 import { Doc } from '../convex/_generated/dataModel';
 
 // --- Componente Helper per i Tag (Invariato) ---
