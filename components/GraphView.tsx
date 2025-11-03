@@ -1,4 +1,4 @@
-// File: components/GraphView.tsx (Aggiornato con Animazione Cronologica)
+// File: components/GraphView.tsx (Aggiornato con Animazione a STEP)
 
 import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { useQuery } from 'convex/react';
@@ -14,9 +14,9 @@ import {
     CopyIcon, 
     EyeOffIcon,
     Tag,
-    PlayIcon,  // <-- AGGIUNTO
-    PauseIcon  // <-- AGGIUNTO
-} from './icons';
+    PlayIcon,
+    PauseIcon
+} from './icons'; // Assicurati che PlayIcon e PauseIcon siano importati
 import { Doc } from '../convex/_generated/dataModel';
 import { getTagClasses } from '../lib/tagColors';
 
@@ -269,11 +269,12 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTagsOpen, setIsTagsOpen] = useState(false);
 
-  // --- NUOVI STATI PER L'ANIMAZIONE ---
+  // --- 🔴 STATI ANIMAZIONE MODIFICATI 🔴 ---
   const [isAnimating, setIsAnimating] = useState(false);
-  const [animationTime, setAnimationTime] = useState<number | null>(null); // null = Vista "Live"
+  const [animationStep, setAnimationStep] = useState<number | null>(null); // null = Vista "Live"
   const animationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [animationSpeed, setAnimationSpeed] = useState(1); // 1x
+  const animationSpeeds = [0.5, 1, 2, 4]; // Velocità
   
   const searchRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -284,7 +285,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
   useClickOutside(tagsRef, () => setIsTagsOpen(false));
 
   // Memo: Dati grezzi (invariato)
-  // Ora include 'createdAt' dal backend
+  // Ora include 'animationStep' dal backend
   const graphData = useMemo(() => {
     if (!graphDataQuery) return { nodes: [], links: [] };
     return {
@@ -293,50 +294,34 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
     };
   }, [graphDataQuery]);
 
-  // --- NUOVO MEMO: TIME RANGE ---
-// --- MEMO: TIME RANGE (MODIFICATO PER GESTIRE STATO DI CARICAMENTO) ---
-  const [minTime, maxTime] = useMemo(() => {
-    // 1. Aspetta che la query finisca
+  // --- 🔴 MEMO: STEP RANGE (MODIFICATO) 🔴 ---
+  const [minStep, maxStep] = useMemo(() => {
     if (graphDataQuery === undefined) {
-      return [null, null];
+      return [null, null]; // Dati in caricamento
     }
-    
-    // 2. Usa i dati memoizzati
     if (!graphData || graphData.nodes.length === 0) {
       return [null, null]; // Nessun dato
     }
     
-    // 3. Filtra solo per timestamp REALI (escludi undefined, NaN, 0)
-    const allTimes = [
-      ...graphData.nodes.map(n => n.createdAt),
-      ...graphData.links.map(l => l.createdAt)
-    ].filter(t => typeof t === 'number' && !isNaN(t) && t > 0);
+    // Cerca il nuovo campo 'animationStep'
+    const allSteps = [
+      ...graphData.nodes.map(n => n.animationStep),
+      ...graphData.links.map(l => l.animationStep)
+    ].filter(t => typeof t === 'number' && !isNaN(t) && t >= 0); // Filtra per numeri >= 0
 
-    if (allTimes.length === 0) {
-      return [null, null]; // I dati esistono, ma non hanno timestamp validi
+    if (allSteps.length === 0) {
+      return [null, null]; // Dati presenti ma senza step validi
     }
     
-    const min = Math.min(...allTimes);
-    const max = Math.max(...allTimes);
+    const min = Math.min(...allSteps);
+    const max = Math.max(...allSteps);
     
-    // 4. Gestisci il caso limite in cui c'è un solo elemento (min === max)
     if (min === max) {
-      // Dà allo slider un piccolo range per funzionare
-      return [min - 1000, max]; 
+      return [min, max + 1]; // Dà allo slider un range minimo
     }
     
     return [min, max];
-  }, [graphDataQuery, graphData]); // <-- Aggiungi graphDataQuery come dipendenza
-
-  // --- NUOVO EFFECT: Imposta l'animationTime iniziale (opzionale) ---
-  // Questo imposta lo slider all'inizio quando si caricano i dati.
-  // Commentalo se preferisci iniziare dalla vista "Live" (animationTime: null)
-  useEffect(() => {
-    if (minTime > 0 && animationTime === null) {
-      // Inizializza a null per la vista Live di default
-      // setAnimationTime(minTime); // Decommenta per iniziare dall'inizio
-    }
-  }, [minTime, animationTime]);
+  }, [graphDataQuery, graphData]);
 
 
   // Memo: Mappa Colori Tag (invariato)
@@ -383,15 +368,14 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
   }, [hoveredNode, hoverLevel, neighborMap]);
 
 
-  // Memo: Dati Filtrati (MODIFICATO per Animazione)
+  // --- 🔴 MEMO: DATI FILTRATI (MODIFICATO) 🔴 ---
   const filteredGraphData = useMemo(() => {
     const { nodes, links } = graphData;
-
     let visibleNodes;
     let visibleLinks;
 
-    if (animationTime === null) {
-      // --- VISTA LIVE (Logica precedente) ---
+    if (animationStep === null) {
+      // --- VISTA LIVE (Logica precedente invariata) ---
       visibleNodes = nodes.filter(node => {
         if (hiddenNodes.has(node.id)) return false;
         if (!showOrphans && node.linkCount === 0) return false;
@@ -401,9 +385,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         }
         return true;
       });
-      
       const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-      
       visibleLinks = links.filter(link => {
         const sourceId = (link.source as any).id || link.source;
         const targetId = (link.target as any).id || link.target;
@@ -411,13 +393,11 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
       });
 
     } else {
-      // --- VISTA ANIMAZIONE (Nuova logica temporale) ---
-      // Filtra nodi e link basati sul tempo
-      // Nota: i filtri (orphans, tags) sono disabilitati durante l'animazione
-      // per semplicità, ma potrebbero essere combinati se necessario.
+      // --- VISTA ANIMAZIONE (Nuova logica a STEP) ---
+      // Filtra nodi e link basati sul passo di animazione
       
       visibleNodes = nodes.filter(node => 
-        node.createdAt <= animationTime && !hiddenNodes.has(node.id)
+        node.animationStep <= animationStep && !hiddenNodes.has(node.id) // <-- USA 'animationStep'
       );
       
       const timeVisibleNodeIds = new Set(visibleNodes.map(n => n.id));
@@ -426,7 +406,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
          const sourceId = (link.source as any).id || link.source;
          const targetId = (link.target as any).id || link.target;
          return (
-           link.createdAt <= animationTime &&
+           link.animationStep <= animationStep && // <-- USA 'animationStep'
            timeVisibleNodeIds.has(sourceId) &&
            timeVisibleNodeIds.has(targetId)
          );
@@ -435,7 +415,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
 
     return { nodes: visibleNodes, links: visibleLinks };
 
-  }, [graphData, hiddenNodes, showOrphans, activeTags, animationTime]); // <-- AGGIUNTA DIPENDENZA
+  }, [graphData, hiddenNodes, showOrphans, activeTags, animationStep]); // <-- DIPENDENZA AGGIORNATA
 
 
   // Effect: Chiude menu e pop-over (invariato)
@@ -447,23 +427,29 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
   }, [filteredGraphData]);
 
 
-  // --- NUOVO EFFECT: LOGICA ANIMAZIONE ---
+  // --- 🔴 EFFECT: LOGICA ANIMAZIONE (MODIFICATO) 🔴 ---
   useEffect(() => {
     if (isAnimating) {
       if (animationIntervalRef.current) {
         clearInterval(animationIntervalRef.current);
       }
+      
+      // Calcola il delay basato sui 500ms (mezzo secondo) e la velocità
+      const baseDelay = 500; 
+      const delay = baseDelay / animationSpeed;
+
       animationIntervalRef.current = setInterval(() => {
-        setAnimationTime(currentTime => {
-          if (currentTime === null || currentTime >= maxTime) {
+        // Usa il nuovo 'setAnimationStep'
+        setAnimationStep(currentStep => { 
+          if (currentStep === null || currentStep >= maxStep) {
             setIsAnimating(false); // Ferma alla fine
-            return maxTime;
+            return maxStep;
           }
-          // Calcola step. Es: 1/500 del range totale per frame * velocità
-          const step = (maxTime - minTime) / 500 * animationSpeed; 
-          return Math.min(currentTime + step, maxTime);
+          // Incrementa di 1 passo
+          return currentStep + 1; 
         });
-      }, 50); // Aggiorna 20 volte/sec
+      }, delay); // <-- Usa il nuovo delay
+
     } else {
       if (animationIntervalRef.current) {
         clearInterval(animationIntervalRef.current);
@@ -475,7 +461,8 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         clearInterval(animationIntervalRef.current);
       }
     };
-  }, [isAnimating, minTime, maxTime, animationSpeed]);
+    // Dipendenze aggiornate
+  }, [isAnimating, minStep, maxStep, animationSpeed]); 
 
 
   // Handler: Click e Navigazione (Invariati)
@@ -537,7 +524,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
       centerGraph();
       return;
     }
-    // Cerca nei dati *attualmente filtrati* (temporali o live)
+    // Cerca nei dati *attualmente filtrati* (per step o live)
     const node = filteredGraphData.nodes.find(n => 
       n.label.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -556,7 +543,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
   }, [filteredGraphData]);
 
 
-  // --- FUNZIONE DISEGNO NODO (Invariata) ---
+  // --- 🔴 FUNZIONE DISEGNO NODO (MODIFICATA) 🔴 ---
   const drawNode = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const label = node.label || '';
     const fontSize = 12 / globalScale;
@@ -566,19 +553,19 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
     const isSearched = node.id === searchedNode?.id;
     const isHighlighted = highlightMap.has(node.id); 
     // Controlla i tag attivi *solo se non stiamo animando*
-    const isFiltered = (animationTime !== null) || activeTags.size === 0 || node.tags?.some((tag: string) => activeTags.has(tag));
+    const isFiltered = (animationStep !== null) || activeTags.size === 0 || node.tags?.some((tag: string) => activeTags.has(tag)); // <-- USA 'animationStep'
     
     let opacity = 1.0;
     if (searchedNode && !isSearched) opacity = 0.05;
     else if (hoveredNode && !isHighlighted) opacity = 0.1; 
-    else if (animationTime === null && activeTags.size > 0 && !isFiltered) opacity = 0.05; // Filtro tag solo in Live
+    else if (animationStep === null && activeTags.size > 0 && !isFiltered) opacity = 0.05; // Filtro tag solo in Live
 
-    // 2. Calcolo dimensione
+    // 2. Calcolo dimensione (invariato)
     const baseRadius = 2;
-    const size = baseRadius + (node.linkCount || 0) * 0.5;
+    const size = baseRadius + (node.linkCount || 0) * 0.75;
     const nodeRadius = Math.min(size, 15) / globalScale;
 
-    // 3. Calcolo colore
+    // 3. Calcolo colore (invariato)
     let colorRgb: string; 
     if (isSearched) {
       colorRgb = SEARCHED_NODE_COLOR;
@@ -596,23 +583,23 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
     
     const fillStyle = `rgba(${colorRgb}, ${opacity * 0.9})`;
 
-    // Disegna il cerchio
+    // Disegna il cerchio (invariato)
     ctx.fillStyle = fillStyle;
     ctx.beginPath();
     ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
     ctx.fill();
 
-    // Disegna testo
+    // Disegna testo (invariato)
     if (opacity > 0.3 && (globalScale > 1.5 || isHighlighted || isSearched)) {
       ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.8})`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, node.x + nodeRadius + 2, node.y);
     }
-  }, [highlightMap, activeTags, colorGroups, tagColorNameMap, searchedNode, hoveredNode, animationTime]); // <-- AGGIUNTA DIPENDENZA
+  }, [highlightMap, activeTags, colorGroups, tagColorNameMap, searchedNode, hoveredNode, animationStep]); // <-- DIPENDENZA AGGIORNATA
 
 
-  // --- FUNZIONE DISEGNO LINK (Invariata) ---
+  // --- 🔴 FUNZIONE DISEGNO LINK (MODIFICATA) 🔴 ---
   const drawLink = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const start = link.source;
     const end = link.target;
@@ -620,7 +607,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
     
     const isSearched = start.id === searchedNode?.id || end.id === searchedNode?.id;
     const isHighlighted = highlightMap.has(start.id) && highlightMap.has(end.id);
-    const isFiltered = (animationTime !== null) || activeTags.size === 0 || 
+    const isFiltered = (animationStep !== null) || activeTags.size === 0 || // <-- USA 'animationStep'
       (start.tags?.some((t: string) => activeTags.has(t)) && 
        end.tags?.some((t: string) => activeTags.has(t)));
        
@@ -628,10 +615,11 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
     if (isSearched || isHighlighted) opacity = 0.6;
     if (searchedNode && !isSearched) opacity = 0.02;
     else if (hoveredNode && !isHighlighted) opacity = 0.05;
-    else if (animationTime === null && activeTags.size > 0 && !isFiltered) opacity = 0.02; // Filtro tag solo in Live
+    else if (animationStep === null && activeTags.size > 0 && !isFiltered) opacity = 0.02; // Filtro tag solo in Live
     
     if (opacity <= 0.02) return;
     
+    // Logica disegno curva (invariata)
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const perpLength = Math.sqrt(dx * dx + dy * dy);
@@ -649,6 +637,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
     ctx.bezierCurveTo(control1X, control1Y, control2X, control2Y, end.x, end.y);
     ctx.stroke();
     
+    // Logica disegno freccia (invariata)
     if (opacity > 0.1) {
       const arrowLength = 8 / globalScale;
       const arrowAngle = Math.PI / 6;
@@ -665,63 +654,60 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
       ctx.closePath();
       ctx.fill();
     }
-  }, [highlightMap, activeTags, searchedNode, hoveredNode, animationTime]); // <-- AGGIUNTA DIPENDENZA
+  }, [highlightMap, activeTags, searchedNode, hoveredNode, animationStep]); // <-- DIPENDENZA AGGIORNATA
 
   
-  // --- NUOVO COMPONENTE: CONTROLLI ANIMAZIONE ---
+  // --- 🔴 COMPONENTE: CONTROLLI ANIMAZIONE (MODIFICATO) 🔴 ---
   const AnimationControls = () => {
-    // Non renderizzare i controlli se i tempi non sono stati ancora calcolati.
-    if (minTime === null || maxTime === null) {
+    // Usa minStep e maxStep
+    if (minStep === null || maxStep === null) {
       return null;
     }
-    // Non mostrare se il grafo è vuoto o in caricamento
     if (graphDataQuery === undefined || graphData.nodes.length === 0) {
       return null; 
     }
 
-    // Resetta l'animazione e torna alla vista normale "Live"
+    // Usa setAnimationStep
     const handleResetAnimation = () => {
       setIsAnimating(false);
-      setAnimationTime(null); // 'null' torna alla vista non filtrata
+      setAnimationStep(null); // 'null' torna alla vista "Live"
     };
 
-    // Avvia l'animazione dall'inizio (o riprende se in pausa)
+    // Usa minStep, maxStep, e setAnimationStep
     const handleTogglePlay = () => {
       if (isAnimating) {
         setIsAnimating(false); // Pausa
       } else {
         // Se siamo alla fine o in "Live", riparti dall'inizio
-        if (animationTime === maxTime || animationTime === null) {
-          setAnimationTime(minTime);
+        if (animationStep === maxStep || animationStep === null) {
+          setAnimationStep(minStep);
         }
         setIsAnimating(true); // Play
       }
     };
+
+    // Cambia la velocità
+    const handleChangeSpeed = () => {
+      const currentIndex = animationSpeeds.indexOf(animationSpeed);
+      const nextIndex = (currentIndex + 1) % animationSpeeds.length;
+      setAnimationSpeed(animationSpeeds[nextIndex]);
+    };
     
-    // Formatta la data per lo slider
-    const formatDate = (timestamp: number | null) => {
-       if (timestamp === null) return "Live";
-       
-       const date = new Date(timestamp);
-       
-       // Controlla se la data è valida
-       if (isNaN(date.getTime())) {
-         // Se il timestamp non è valido (es. NaN),
-         // ritorna "Live" invece di "Invalid Date"
-         return "Live"; 
-       }
-       
-       return date.toLocaleDateString();
+    // Non formatta più una data, ma uno step
+    const formatStep = (step: number | null) => {
+       if (step === null) return "Live";
+       // Mostra lo step corrente e il totale
+       return `Passo: ${step} / ${maxStep}`;
     };
 
-    const currentDisplayTime = animationTime ?? maxTime;
+    const currentDisplayStep = animationStep ?? maxStep;
 
     return (
       <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-2 bg-notion-sidebar-dark border border-notion-border-dark rounded-lg shadow-2xl p-2 text-notion-text-dark">
         {/* Pulsante Play/Pause */}
         <button
           onClick={handleTogglePlay}
-          className="p-2 rounded-md hover:bg-notion-hover-dark"
+          className="p-2 w-10 rounded-md hover:bg-notion-hover-dark"
           title={isAnimating ? "Pausa" : "Play (dall'inizio)"}
         >
           {isAnimating ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
@@ -730,29 +716,38 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         {/* Pulsante Reset (torna a "Live") */}
         <button
           onClick={handleResetAnimation}
-          disabled={animationTime === null} // Disabilitato se già in "Live"
-          className="p-2 rounded-md hover:bg-notion-hover-dark disabled:opacity-30"
+          disabled={animationStep === null} // Usa animationStep
+          className="p-2 w-10 rounded-md hover:bg-notion-hover-dark disabled:opacity-30"
           title="Resetta (Vista Live)"
         >
           <XIcon className="w-5 h-5" />
         </button>
         
-        {/* Slider del Tempo */}
+        {/* Pulsante Velocità */}
+        <button
+          onClick={handleChangeSpeed}
+          className="p-2 w-10 rounded-md hover:bg-notion-hover-dark text-xs font-semibold"
+          title={`Velocità: ${animationSpeed}x`}
+        >
+          {animationSpeed}x
+        </button>
+        
+        {/* Slider (usa minStep, maxStep) */}
         <input
           type="range"
-          min={minTime}
-          max={maxTime}
-          value={currentDisplayTime}
+          min={minStep}
+          max={maxStep}
+          value={currentDisplayStep}
           onChange={(e) => {
-            setIsAnimating(false); // Stoppa l'animazione se si muove lo slider
-            setAnimationTime(Number(e.target.value));
+            setIsAnimating(false);
+            setAnimationStep(Number(e.target.value)); // Usa setAnimationStep
           }}
           className="w-56 md:w-64 h-2 bg-notion-bg-dark rounded-lg appearance-none cursor-pointer accent-blue-500"
         />
         
-        {/* Data Corrente */}
-        <span className="text-xs w-20 text-center text-notion-text-gray-dark">
-          {formatDate(animationTime)}
+        {/* Display Step (invece di Data) */}
+        <span className="text-xs w-28 text-center text-notion-text-gray-dark font-medium">
+          {formatStep(animationStep)}
         </span>
       </div>
     );
@@ -762,11 +757,12 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
   // --- Render (Invariato, usa la nuova barra UI) ---
   if (!isOpen) return null;
   
-  // Calcola se i filtri (non temporali) sono attivi
-  const hasActiveFilters = (activeTags.size > 0 || !showOrphans) && animationTime === null;
+  // Calcolo filtri attivi (usa animationStep)
+  const hasActiveFilters = (activeTags.size > 0 || !showOrphans) && animationStep === null;
 
   return (
     <div className="fixed inset-0 z-40 bg-notion-bg-dark/100 flex flex-col">
+      {/* Sfondo (invariato) */}
       <div 
         className="absolute inset-0 opacity-20"
         style={{
@@ -775,6 +771,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         }}
       />
       
+      {/* Menu Contestuale (invariato) */}
       {contextMenu && (
         <ContextMenu
           menu={contextMenu}
@@ -785,7 +782,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         />
       )}
 
-      {/* Contenitore principale per il grafo e gli stati di caricamento */}
+      {/* Contenitore principale per il grafo e gli stati di caricamento (invariato) */}
       <div className="flex-1 relative">
         {graphDataQuery === undefined ? (
           // Stato di Caricamento
@@ -801,7 +798,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
           // Grafo
           <ForceGraph2D
             ref={graphRef}
-            graphData={filteredGraphData} // <-- USA I DATI FILTRATI (TEMPORALI O LIVE)
+            graphData={filteredGraphData} // <-- USA I DATI FILTRATI (per step o live)
             backgroundColor="rgba(0,0,0,0)"
             onEngineStop={() => centerGraph()}
             nodeRelSize={undefined}
@@ -826,17 +823,17 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         )}
       </div>
 
-      {/* === NUOVA BARRA ANIMAZIONE === */}
+      {/* === NUOVA BARRA ANIMAZIONE (ora basata su Step) === */}
       <AnimationControls />
 
-      {/* --- BARRA DI CONTROLLO IN BASSO --- */}
+      {/* --- BARRA DI CONTROLLO IN BASSO (MODIFICATA) --- */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-1 bg-notion-sidebar-dark border border-notion-border-dark rounded-lg shadow-2xl p-1 text-notion-text-dark">
         
-        {/* Gruppo 1: Filtri e Ricerca (Disabilitati durante l'animazione) */}
+        {/* Gruppo 1: Filtri (Disabilitati durante l'animazione) */}
         <div ref={searchRef} className="relative">
           <button
             onClick={() => setIsSearchOpen(s => !s)}
-            disabled={animationTime !== null} // <-- Disabilita
+            disabled={animationStep !== null} // <-- USA 'animationStep'
             className={`p-2 rounded-md ${isSearchOpen ? 'bg-blue-600 text-white' : 'hover:bg-notion-hover-dark'} disabled:opacity-30`}
             title="Cerca"
           >
@@ -853,7 +850,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         <div ref={settingsRef} className="relative">
           <button
             onClick={() => setIsSettingsOpen(s => !s)}
-            disabled={animationTime !== null} // <-- Disabilita
+            disabled={animationStep !== null} // <-- USA 'animationStep'
             className={`p-2 rounded-md ${isSettingsOpen ? 'bg-blue-600 text-white' : 'hover:bg-notion-hover-dark'} disabled:opacity-30`}
             title="Impostazioni"
           >
@@ -873,7 +870,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
         <div ref={tagsRef} className="relative">
           <button
             onClick={() => setIsTagsOpen(s => !s)}
-            disabled={animationTime !== null} // <-- Disabilita
+            disabled={animationStep !== null} // <-- USA 'animationStep'
             className={`p-2 rounded-md relative ${isTagsOpen ? 'bg-blue-600 text-white' : 'hover:bg-notion-hover-dark'} disabled:opacity-30`}
             title="Filtra per Tag"
           >
@@ -892,7 +889,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
           )}
         </div>
 
-        {/* Separatore */}
+        {/* Separatore (invariato) */}
         <div className="h-6 w-px bg-notion-border-dark mx-1"></div>
 
         {/* Gruppo 2: Azioni Grafo (Sempre attive) */}
@@ -904,7 +901,7 @@ export const GraphView: React.FC<GraphViewProps> = ({ isOpen, onClose, onSelectP
           <RefreshCwIcon className="w-5 h-5" />
         </button>
         
-        {/* Separatore */}
+        {/* Separatore (invariato) */}
         <div className="h-6 w-px bg-notion-border-dark mx-1"></div>
         
         {/* Gruppo 3: Uscita (Sempre attiva) */}

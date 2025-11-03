@@ -1232,11 +1232,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         // 2. Sostituisci il testo con il pageLink
         editor.chain()
           .focus()
-          .insertContentAt(selectionRange, {
+          // 1. Usa la selezione corrente {from, to} per cancellare il testo
+          .deleteRange({ from, to }) 
+          // 2. Inserisci il pageLink nella posizione del cursore (che ora è 'from')
+          .insertContent({
             type: 'pageLink',
-            attrs: { 
+            attrs: {
               pageId: newPage._id,
-              title: selectedText // <-- CORREZIONE PROBLEMA 1 (Untitled)
+              title: selectedText,
             },
           })
           .run();
