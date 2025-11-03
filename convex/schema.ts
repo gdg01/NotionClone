@@ -73,16 +73,14 @@ export default defineSchema({
     // Un altro indice utile per pulire i vecchi link
     .index("by_source", ["userId", "sourcePageId"]),
 
-
     tasks: defineTable({
       title: v.string(),
       userId: v.string(),
-      pageId: v.id("pages"), // Il link alla pagina richiesta
-      status: v.string(), // "todo", "inprogress", "done"
-      // potresti aggiungere 'order: v.number()' per il riordino D&D
+      pageId: v.id("pages"), 
+      status: v.string(),
+      description: v.optional(v.string()), // <-- CAMPO AGGIUNTO
     })
-      // Indice per recuperare tutti i task di un utente
       .index("byUser", ["userId"])
-      // Indice per recuperare i task per pagina (utile in futuro)
       .index("byUserAndPage", ["userId", "pageId"]),
+
 });

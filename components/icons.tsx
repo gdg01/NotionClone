@@ -251,3 +251,30 @@ export const CheckSquareIcon = (props: IconProps) => (
     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
   </svg>
 );
+
+export const MoreHorizontalIcon = (props: IconProps) => (
+  <svg {...defaultProps} {...props}>
+    <circle cx="12" cy="12" r="1"></circle>
+    <circle cx="19" cy="12" r="1"></circle>
+    <circle cx="5" cy="12" r="1"></circle>
+  </svg>
+);
+
+export const CircleDottedIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" strokeDasharray="2 4" />
+    </svg>
+);
+
+export const CircleHalfIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none" />
+        <path d="M12 2a10 10 0 0 1 0 20z" />
+    </svg>
+);
+
+export const CircleFilledIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+    </svg>
+);

@@ -33,6 +33,12 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { createLowlight } from 'lowlight';
 import Dropcursor from '@tiptap/extension-dropcursor';
 import javascript from 'highlight.js/lib/languages/javascript';
+
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+
 import python from 'highlight.js/lib/languages/python';
 import c from 'highlight.js/lib/languages/c';
 import x86asm from 'highlight.js/lib/languages/x86asm';
@@ -60,8 +66,6 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api'; 
 import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc } from '../convex/_generated/dataModel';
-
-// --- Componente Helper per i Tag (Invariato) ---
 interface TagInputProps {
   pageTags: string[]; // Nomi dei tag su questa pagina
   onUpdatePageTags: (tags: string[]) => void;
@@ -519,6 +523,15 @@ const commandItems = ({
     icon: '➖',
     command: () => editor.chain().focus().setHorizontalRule().run(),
     aliases: ['hr'],
+  },
+  {
+    title: 'Table',
+    icon: '🟫', 
+    command: () =>
+      editor.chain().focus()
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true }) // Tabella 3x3 con riga di intestazione
+        .run(),
+    aliases: ['tabella', 'table', 'db'],
   },
   {
     title: 'Page',
@@ -1103,8 +1116,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             'blockquote',
             'horizontalRule',
             'subPagesList',
+            'table',
           ],
         }),
+        Table.configure({
+          resizable: true, // Abilita il ridimensionamento delle colonne
+          draggable: true, // Abilita il drag and drop dell'intera tabella
+        }),
+        TableRow,
+        TableCell,
+        TableHeader,
         Columns,
         Column,
         Callout,

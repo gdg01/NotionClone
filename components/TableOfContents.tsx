@@ -74,6 +74,14 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({
   }, [headings, isSplitView]); // <-- MODIFICA 2: Aggiunta 'isSplitView' alle dipendenze
   // --- FINE LOGICA ---
 
+  const minLevel = useMemo(() => {
+      // Se non ci sono titoli, il livello minimo è 1 (o un valore predefinito)
+      if (headings.length === 0) {
+          return 1;
+      }
+      // Trova il livello numerico più basso (es. h1 ha level 1, h2 ha level 2)
+      return Math.min(...headings.map(h => h.level));
+  }, [headings]);
 
   // --- MODIFICA 3: Spostati i controlli di uscita QUI ---
   // Ora che tutti gli hook sono stati chiamati, possiamo 
@@ -96,6 +104,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({
         block: 'start',
         behavior: 'auto'
       });
+      setActiveHeadingId(id);
       
       if (window.history.pushState) {
         window.history.pushState(null, '', `#${pageId}:${id}`);
@@ -126,7 +135,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({
                             ? 'text-custom-coral' 
                             : 'text-notion-text dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark'
                         }`}
-                        style={{ paddingLeft: `${(heading.level - 1) * 16 + 8}px` }}
+                        style={{ paddingLeft: `${(heading.level - minLevel) * 16 + 8}px` }}
                     >
                         <span className="truncate">{heading.text}</span>
                     </a>

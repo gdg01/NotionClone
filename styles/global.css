@@ -265,3 +265,67 @@
   animation: fadeInStagger 400ms ease-out forwards;
   /* Il ritardo (animation-delay) verrà applicato via JavaScript */
 }
+
+
+
+/* --- Stili Base Tabella Tiptap --- */
+
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  min-width: 1em;
+  border: 1px solid #cdd2d8; /* Ho reso questo bordo un po' più sottile */
+  padding: 3px 5px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.ProseMirror table th {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f1f3f5;
+}
+
+/* --- Stili per il Ridimensionamento Colonne --- */
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  cursor: col-resize;
+  background-color: #adf; /* Questo è il colore della maniglia (azzurro) */
+  pointer-events: none;
+}
+
+.ProseMirror .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(173, 216, 230, 0.4); /* Sfondo cella selezionata (azzurro chiaro) */
+  pointer-events: none;
+}
+
+/* --- Stili Dark Mode (Bonus) --- */
+
+.dark .ProseMirror table th {
+  background-color: #374151; /* Esempio: Grigio scuro per intestazione */
+  border-color: #4b5563; /* Bordi scuri */
+}
+
+.dark .ProseMirror table td {
+  border-color: #4b5563; /* Bordi scuri */
+}
