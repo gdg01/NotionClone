@@ -620,7 +620,8 @@ export default function App() {
               saveStatus={saveStatus}
               lastSaveTime={lastSaveTime}
               onSaveNow={handleSaveNow}
-              lastModified={lastModified} 
+              lastModified={lastModified}
+              onOpenSpotlight={() => setIsSpotlightOpen(true)} // <-- AGGIUNGI QUESTA RIGA
             />
 
             <div ref={layoutRef} className="flex h-full w-full">

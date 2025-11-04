@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 import type { Page } from '../App';
-import { MenuIcon, ChevronRightIcon, SaveIcon } from './icons';
+import { MenuIcon, ChevronRightIcon, SaveIcon, SearchIcon } from './icons';
 import { PomodoroTimer } from './PomodoroTimer'; // <-- IMPORTA IL NUOVO COMPONENTE
 
 export type SaveStatus = "Idle" | "Dirty" | "Saving" | "Saved";
@@ -19,6 +19,7 @@ interface BreadcrumbNavProps {
   lastSaveTime: Date | null;
   lastModified: number | null; 
   onSaveNow: () => void;
+  onOpenSpotlight: () => void;
 }
 
 // Icona Spinner
@@ -154,7 +155,8 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   saveStatus,
   lastSaveTime,
   lastModified, 
-  onSaveNow
+  onSaveNow,
+  onOpenSpotlight
 }) => {
 
   const breadcrumbPath = useMemo(() => {
@@ -209,6 +211,14 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
 
       {/* --- MODIFICA: Aggiunto PomodoroTimer --- */}
       <div className="flex items-center space-x-2 ml-auto pl-4">
+        <button
+          onClick={onOpenSpotlight}
+          className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md"
+          aria-label="Apri ricerca"
+          title="Search (Ctrl+Space)"
+        >
+          <SearchIcon className="w-4 h-4" />
+        </button>
         <SaveStatusIndicator 
           status={saveStatus}
           lastSaveTime={lastSaveTime}

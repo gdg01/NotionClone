@@ -1014,7 +1014,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [title, setTitle] = useState(page.title || '');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // --- INIZIO MODIFICA 1: Aggiungi questi due ganci ---
+  const titleRef = useRef<HTMLTextAreaElement>(null);
 
+  // Questo effetto imposta l'altezza iniziale corretta quando la pagina si carica
+  useEffect(() => {
+    if (titleRef.current) {
+      titleRef.current.style.height = 'auto'; // Resetta l'altezza
+      titleRef.current.style.height = `${titleRef.current.scrollHeight}px`; // Imposta l'altezza al contenuto
+    }
+  }, [page.title]); // Esegui quando il titolo della pagina (dalle props) cambia
+  // --- FINE MODIFICA 1 ---
   const updateHeadingsFromEditor = useCallback((editor: TiptapEditor) => {
     const newHeadings: Heading[] = [];
     editor.state.doc.forEach((node) => {
@@ -1062,14 +1072,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   }, []); 
 
   const debouncedOnTitleChange = useMemo(() => {
-    const saveAndSetTitle = async (newTitle: string) => {
-      if (saveStatus === 'Dirty') {
-        await onSaveNow();
-      }
-      onTitleChange(newTitle);
-    };
-    return debounce(saveAndSetTitle, 2000);
-  }, [onTitleChange, saveStatus, onSaveNow]);
+    // Chiama solo onTitleChange (la prop da App.tsx)
+    return debounce((newTitle: string) => {
+        onTitleChange(newTitle);
+    }, 2000); // 2 secondi di debounce
+  }, [onTitleChange]);
 
   const pagesRef = React.useRef(pages);
   React.useEffect(() => {
@@ -1190,7 +1197,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
       editorProps: {
         attributes: {
           class:
-            'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl focus:outline-none dark:prose-invert',
+            'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl focus:outline-none dark:prose-invert max-w-none ',
           },
         handlePaste: (view, event, slice) => {
           const text = event.clipboardData?.getData('text/plain') || '';
@@ -1284,9 +1291,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
     getEditor: () => editor,
   }), [editor]);
 
-  useEffect(() => {
+useEffect(() => {
+  if (document.activeElement !== titleRef.current) {
     setTitle(page.title || '');
-  }, [page.title]);
+  }
+}, [page.title]); // Dipende solo dalla prop in ingresso
 
   useEffect(() => {
     if (scrollToBlockId && editor) {
@@ -1411,15 +1420,32 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             </button>
           )}
 
-          <input
-            type="text"
+          <textarea
+            ref={titleRef}
+            rows={1}
             value={title}
             onChange={(e) => {
-              setTitle(e.target.value);
-              debouncedOnTitleChange(e.target.value);
+              setTitle(e.target.value); // 1. Aggiorna stato locale
+              debouncedOnTitleChange(e.target.value); // 2. Pianifica salvataggio
+
+              // Logica di auto-resize
+              e.currentTarget.style.height = 'auto';
+              e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+            }}
+            onBlur={() => {
+              // 3. Salva immediatamente quando l'utente clicca via
+              debouncedOnTitleChange.cancel(); // Annulla il salvataggio pianificato
+              onTitleChange(title); // Salva il valore *corrente*
+            }}
+            onKeyDown={(e) => {
+              // Impedisci di andare a capo e scatena l'onBlur
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
             }}
             placeholder="Untitled"
-            className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4"
+            className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4 resize-none overflow-hidden"
           />
         </div>
 
