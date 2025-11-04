@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => {
           // Configurazione del Service Worker (Caching)
           workbox: {
             globPatterns: ['**/*.{js,css,html,svg,png,ico}'], // Cache di base
+            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             runtimeCaching: [
               {
                 // ** IMPORTANTE: Non mettere MAI in cache le chiamate a Convex **
