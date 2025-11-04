@@ -1,11 +1,15 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  // 🔽 **QUESTA È LA PARTE CORRETTA PER TE** 🔽
+  // 🔽 **MODIFICA CHIAVE** 🔽
+  // Questi pattern sono specifici e ignorano node_modules.
   content: [
-    "./index.html", // Analizza l'HTML
-    "./**/*.{js,ts,jsx,tsx}", // Analizza tutti i file JS/TS/JSX/TSX nel progetto
+    "./index.html",
+    "./*.{js,ts,jsx,tsx}",             // Scansiona file nella root (es. App.tsx)
+    "./components/**/*.{js,ts,jsx,tsx}", // Scansiona tutto dentro /components
+    "./lib/**/*.{js,ts,jsx,tsx}",      // Scansiona tutto dentro /lib
+    "./services/**/*.{js,ts,jsx,tsx}" // Scansiona tutto dentro /services
   ],
-  // 🔼 **FINE DELLA MODIFICA CHIAVE** 🔼
+  // 🔼 **FINE DELLA MODIFICA** 🔼
 
   darkMode: 'class', 
   theme: {

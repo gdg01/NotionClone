@@ -65,6 +65,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api'; 
 import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc } from '../convex/_generated/dataModel';
+import { useMobileDrawerData } from '../context/MobileDrawerContext';
 
 // --- TagInput (Invariato) ---
 interface TagInputProps {
@@ -999,6 +1000,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
+  const { setMobileData } = useMobileDrawerData();
+
+
   useEffect(() => {
     if (titleRef.current) {
       titleRef.current.style.height = 'auto'; 
@@ -1023,6 +1027,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   const backlinks = useQuery(api.links.getBacklinksForPage, {
     pageId: page._id,
   });
+
+  
+  useEffect(() => {
+    // Invia i dati al context per essere letti dalla BreadcrumbNav
+    setMobileData({
+      headings: headings,
+      backlinks: (backlinks as EnrichedBacklink[]) || [],
+    });
+  }, [headings, backlinks, setMobileData]);
   
   useEffect(() => {
     const styleId = 'column-drag-styles';
@@ -1338,6 +1351,7 @@ useEffect(() => {
           headings={headings} 
           pageId={page._id} 
           isSplitView={isSplitView} 
+          mode="desktop"
         />
       )}
       {/* --- FINE MODIFICA 5 --- */}
@@ -1348,6 +1362,7 @@ useEffect(() => {
           backlinks={backlinks as EnrichedBacklink[]}
           onSelectPage={onSelectPage}
           onOpenInSplitView={onOpenInSplitView}
+          mode="desktop"
         />
       )}
         

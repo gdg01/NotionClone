@@ -54,8 +54,8 @@ export default defineConfig(({ mode }) => {
 
           // Configurazione del Manifest (Come appare l'app)
           manifest: {
-            name: "Notion Clone", //
-            short_name: "NotionClone",
+            name: "Clonotion", //
+            short_name: "Clonotion",
             description: "Un editor avanzato per note e knowledge management.", //
             start_url: "/",
             // ** FONDAMENTALE per l'aspetto da app nativa **

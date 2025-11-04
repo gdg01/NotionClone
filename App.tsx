@@ -16,6 +16,7 @@ import { SpotlightSearch } from './components/SpotlightSearch';
 import { GraphView } from './components/GraphView';
 import { FlowView } from './components/FlowView';
 import { TasksView } from './components/TasksView'; // <-- 1. IMPORTA LA NUOVA VISTA
+import { MobileDrawerProvider } from './context/MobileDrawerContext';
 export type Page = Doc<"pages">;
 
 
@@ -583,7 +584,8 @@ export default function App() {
     }
 
   return (
-    <div className="flex h-screen w-full font-sans bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark transition-colors duration-200 overflow-hidden">
+    <MobileDrawerProvider>
+      <div className="flex h-screen w-full font-sans bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark transition-colors duration-200 overflow-hidden">
         <>
           <Sidebar
             onAddPage={(parentId) => addPage(parentId, { navigate: true })}
@@ -790,6 +792,8 @@ export default function App() {
             </div>
           </div>
         </>
-    </div>
+      </div>
+    </MobileDrawerProvider>
+
   );
 }

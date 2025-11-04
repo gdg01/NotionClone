@@ -12,42 +12,57 @@ export type EnrichedBacklink = {
   snippet: string;
 };
 
+// --- 1. MODIFICA INTERFACCIA PROPS ---
 interface BacklinksListProps {
   backlinks: EnrichedBacklink[];
   onSelectPage: (pageId: string) => void;
   onOpenInSplitView: (pageId: string) => void;
-  isSidebarOpen: boolean; // <-- AGGIUNTA NUOVA PROP
+  isSidebarOpen: boolean; 
+  mode: 'desktop' | 'mobile'; // Prop per la modalità
 }
+// --- FINE 1. ---
 
 export const BacklinksList: React.FC<BacklinksListProps> = ({ 
   backlinks, 
   onSelectPage, 
   onOpenInSplitView,
-  isSidebarOpen // <-- RICEVUTA NUOVA PROP
+  isSidebarOpen,
+  mode // --- 2. RICEVI PROP ---
 }) => {
-  if (backlinks.length === 0) {
+  
+  // --- 3. MODIFICA CONTROLLI DI USCITA ---
+  // Se è desktop E non ci sono backlinks, esci.
+  if (mode === 'desktop' && backlinks.length === 0) {
     return null; 
   }
+  // Se è mobile E non ci sono backlinks, mostra un messaggio.
+  if (mode === 'mobile' && backlinks.length === 0) {
+    return <p className="text-notion-text-gray dark:text-notion-text-gray-dark">Nessun backlink trovato per questa pagina.</p>
+  }
+  // --- FINE 3. ---
 
   const handleClick = (e: React.MouseEvent, pageId: string) => {
     e.preventDefault();
-    if (e.metaKey || e.ctrlKey) {
-      onOpenInSplitView(pageId);
-    } else {
+    // Su mobile, disabilitiamo lo split view e facciamo solo navigazione
+    if (mode === 'mobile' || (!e.metaKey && !e.ctrlKey)) {
       onSelectPage(pageId);
+    } else {
+      onOpenInSplitView(pageId);
     }
   };
 
-  // Larghezza sidebar = w-72 = 18rem
-  // Padding desiderato = 1rem (come 'left-4')
   const leftPosition = isSidebarOpen ? 'calc(18rem + 1rem)' : '1rem';
+
+  // --- 4. CLASSI CSS DINAMICHE ---
+  const wrapperClass = mode === 'desktop'
+    ? "hidden md:block fixed bottom-16 z-10 w-64 transition-all duration-300 ease-in-out"
+    : "w-full"; // Stile semplice per il drawer
+  // --- FINE 4. ---
 
   return (
     <div 
-      className="hidden md:block fixed bottom-16 z-10 w-64 transition-all duration-300 ease-in-out"
-      style={{
-        left: leftPosition, // <-- Stile dinamico per 'left'
-      }}
+      className={wrapperClass}
+      style={mode === 'desktop' ? { left: leftPosition } : {}} // Applica stile 'left' solo su desktop
     >
         <div className="flex items-center text-sm text-notion-text dark:text-notion-text-dark pb-2" >
           BackLinks
@@ -59,26 +74,24 @@ export const BacklinksList: React.FC<BacklinksListProps> = ({
               <a
                 href={`#${link.sourcePageId}`}
                 onClick={(e) => handleClick(e, link.sourcePageId)}
-                // MODIFICA: Trasformato in 'flex' e rimosso 'truncate'
                 className={`flex items-center text-sm p-1 rounded transition-colors text-notion-text dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark`}
                 style={{ paddingLeft: '8px' }}
-                title={`"${link.snippet}..."`}
+                title={mode === 'desktop' ? `"${link.snippet}..." (Ctrl+Clic per aprire a lato)` : `"${link.snippet}...`}
               >
-                {/* --- COLONNA 1: ICONA --- */}
+                {/* Icona */}
                 {link.sourcePageIcon ? (
                   <span className="mr-3 flex-shrink-0">{link.sourcePageIcon}</span>
                 ) : (
                   <PageIcon className="w-4 h-4 mr-3 flex-shrink-0" />
                 )}
                 
-                {/* --- COLONNA 2: BLOCCO TESTO (2 Righe) --- */}
-                {/* min-w-0 è necessario per far funzionare 'truncate' dentro un flexbox */}
+                {/* Blocco Testo (2 Righe) */}
                 <div className="min-w-0">
                   {/* Riga 1: Titolo */}
                   <span className="block truncate font-medium text-sm">
                     {link.sourcePageTitle}
                   </span>
-                  {/* Riga 2: Snippet (rimosso pl-6) */}
+                  {/* Riga 2: Snippet */}
                   <p className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark italic truncate">
                     "...{link.snippet}..."
                   </p>

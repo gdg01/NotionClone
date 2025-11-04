@@ -1,4 +1,4 @@
-// components/TableOfContents.tsx (SOSTITUZIONE COMPLETA - CON FIX)
+// components/TableOfContents.tsx (SOSTITUZIONE COMPLETA)
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { MenuIcon } from './icons'; // Importa la MenuIcon
@@ -9,32 +9,34 @@ interface Heading {
   text: string;
 }
 
+// --- 1. MODIFICA INTERFACCIA PROPS ---
 interface TableOfContentsProps {
   headings: Heading[];
   pageId: string;
-  isSplitView: boolean; // Prop (corretta)
+  isSplitView: boolean;
+  mode: 'desktop' | 'mobile'; // Prop per la modalità
+  onLinkClick?: () => void; // Per chiudere il drawer
 }
+// --- FINE 1. ---
 
 export const TableOfContents: React.FC<TableOfContentsProps> = ({ 
   headings, 
   pageId,
-  isSplitView // Prop (corretta)
+  isSplitView,
+  mode, // --- 2. RICEVI LE NUOVE PROP ---
+  onLinkClick
 }) => {
   // --- Ganci (Hooks) ---
-  // Devono essere chiamati tutti incondizionatamente all'inizio.
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const headingEntriesRef = useRef(new Map<string, IntersectionObserverEntry>());
 
   // --- Logica IntersectionObserver ---
   useEffect(() => {
     
-    // --- MODIFICA 1: Aggiunto controllo qui ---
-    // Se siamo in split view o non ci sono titoli, 
-    // non avviare l'observer.
-    if (isSplitView || headings.length === 0) {
+    // Non avviare l'observer se siamo in split view O in modalità mobile
+    if (isSplitView || headings.length === 0 || mode === 'mobile') {
         return; // Esce dall'effetto
     }
-    // --- FINE MODIFICA 1 ---
 
     const observerCallback: IntersectionObserverCallback = (entries) => {
         entries.forEach(entry => {
@@ -71,59 +73,72 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({
       elements.forEach((el) => el && observer.unobserve(el));
       headingEntriesRef.current.clear();
     };
-  }, [headings, isSplitView]); // <-- MODIFICA 2: Aggiunta 'isSplitView' alle dipendenze
+  }, [headings, isSplitView, mode]); // <-- Aggiungi 'mode' alle dipendenze
   // --- FINE LOGICA ---
 
   const minLevel = useMemo(() => {
-      // Se non ci sono titoli, il livello minimo è 1 (o un valore predefinito)
       if (headings.length === 0) {
           return 1;
       }
-      // Trova il livello numerico più basso (es. h1 ha level 1, h2 ha level 2)
       return Math.min(...headings.map(h => h.level));
   }, [headings]);
 
-  // --- MODIFICA 3: Spostati i controlli di uscita QUI ---
-  // Ora che tutti gli hook sono stati chiamati, possiamo 
-  // uscire in sicurezza.
-  if (isSplitView) {
+  // --- 3. MODIFICA CONTROLLI DI USCITA ---
+  // Se è desktop E valgono le vecchie condizioni, esci.
+  if (mode === 'desktop' && (isSplitView || headings.length === 0)) {
     return null;
   }
-  if (headings.length === 0) {
-    return null;
+  
+  // Se è mobile E non ci sono headings, mostra un messaggio
+  if (mode === 'mobile' && headings.length === 0) {
+    return <p className="text-notion-text-gray dark:text-notion-text-gray-dark">Nessun titolo in questa pagina.</p>
   }
-  // --- FINE MODIFICA 3 ---
+  // --- FINE 3. ---
 
-
-  // Logica click (invariata)
+  // Logica click (Modificata)
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
     const element = document.getElementById(id);
     if (element) {
-      element.scrollIntoView({
-        block: 'start',
-        behavior: 'auto'
-      });
+      // In modalità mobile, l'editor non è scrollabile, quindi lo scroll non serve.
+      // Su desktop, invece sì.
+      if (mode === 'desktop') {
+        element.scrollIntoView({
+          block: 'start',
+          behavior: 'auto'
+        });
+      }
+      
       setActiveHeadingId(id);
       
       if (window.history.pushState) {
         window.history.pushState(null, '', `#${pageId}:${id}`);
       }
     }
+    
+    // Chiudi il drawer se siamo su mobile
+    if (onLinkClick) {
+      onLinkClick();
+    }
   };
+  
+  // --- 4. CLASSI CSS DINAMICHE ---
+  const wrapperClass = mode === 'desktop'
+    ? "hidden md:block fixed top-16 right-4 z-10 w-64 "
+    : "w-full"; // Stile semplice per il drawer
+  // --- FINE 4. ---
 
-  // JSX (invariato)
+  // JSX
   return (
-    <div 
-      className="hidden md:block fixed top-16 right-4 z-10 w-64 "
-    >
+    <div className={wrapperClass}>
         <div className="flex items-center text-sm text-notion-text dark:text-notion-text-dark pb-2" style={{ marginLeft: '-4px' }}>
           <MenuIcon className="w-5 h-5 mr-2" />
           On this page
         </div>
 
-        <ul className="border-l  border-notion-border dark:border-notion-border-dark">
+        <ul className="border-l border-notion-border dark:border-notion-border-dark">
             {headings.map((heading) => {
+              // L'highlighting su mobile non è fondamentale, ma lo lasciamo
               const isActive = activeHeadingId === heading.id;
               return (
                 <li key={heading.id} className="relative">

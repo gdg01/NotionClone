@@ -1,14 +1,22 @@
 // File: src/components/BreadcrumbNav.tsx (SOSTITUZIONE COMPLETA)
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom'; // Necessario per il Portal nel Drawer
 import { UserButton } from '@clerk/clerk-react';
 import type { Page } from '../App';
-import { MenuIcon, ChevronRightIcon, SaveIcon, SearchIcon } from './icons';
-import { PomodoroTimer } from './PomodoroTimer'; // <-- IMPORTA IL NUOVO COMPONENTE
+import { MenuIcon, ChevronRightIcon, SaveIcon, SearchIcon, LinkIcon } from './icons'; // Importa LinkIcon
+import { PomodoroTimer } from './PomodoroTimer';
 import { ShareMenu } from './ShareMenu';
+
+// Importa i componenti per il Drawer
+import { useMobileDrawerData } from '../context/MobileDrawerContext';
+import { MobileDrawer } from './MobileDrawer';
+import { TableOfContents } from './TableOfContents';
+import { BacklinksList } from './BacklinksList';
 
 export type SaveStatus = "Idle" | "Dirty" | "Saving" | "Saved";
 
+// Interfaccia Props (ora più semplice, senza le prop del drawer)
 interface BreadcrumbNavProps {
   pages: Page[];
   activePageId: string | null;
@@ -23,22 +31,20 @@ interface BreadcrumbNavProps {
   onOpenSpotlight: () => void;
 }
 
-// Icona Spinner
+// (Icona Spinner e CheckIcon rimangono invariate)
 const SpinnerIcon = (props: { className?: string }) => (
   <svg className={`w-4 h-4 ${props.className || ''}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
-
-// Icona Spunta (Check)
 const CheckIcon = (props: { className?: string }) => (
   <svg className={`w-4 h-4 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
   </svg>
 );
 
-
+// (SaveStatusIndicator rimane invariato)
 const SaveStatusIndicator: React.FC<{ 
   status: SaveStatus;
   lastSaveTime: Date | null;
@@ -50,10 +56,9 @@ const SaveStatusIndicator: React.FC<{
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Effetto per il conto alla rovescia
   useEffect(() => {
     if (status === 'Dirty') {
-      setCountdown(15); // Resetta il countdown
+      setCountdown(15); 
       const timer = setInterval(() => {
         setCountdown(prev => (prev > 0 ? prev - 1 : 0));
       }, 1000);
@@ -63,7 +68,6 @@ const SaveStatusIndicator: React.FC<{
     }
   }, [status, lastModified]);
 
-  // Effetto per chiudere il menu cliccando all'esterno
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -121,16 +125,13 @@ const SaveStatusIndicator: React.FC<{
           className="absolute top-full right-0 mt-2 w-56 bg-notion-bg-dark border border-notion-border-dark rounded-md shadow-lg p-1 z-20"
         >
           <div className="flex flex-col">
-            
             <div className="px-2 py-1 text-sm text-notion-text-gray-dark">
               Last save: {lastSaveTime ? lastSaveTime.toLocaleTimeString() : 'N/A'}
             </div>
             <div className="px-2 py-1 text-sm text-notion-text-gray-dark">
               Next: {status === 'Dirty' ? `in ${countdown}s` : 'Saved'}
             </div>
-
             <div className="border-t border-notion-border-dark my-1 mx-1"></div>
-
             <button
               onClick={handleSaveNowClick}
               className="flex items-center w-full text-left px-2 py-1 text-sm rounded text-notion-text-dark hover:bg-notion-hover-dark"
@@ -172,78 +173,143 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
     return path;
   }, [pages, activePageId]);
 
-
   const activePage = useMemo(
-  () => pages.find((p: Page) => p._id === activePageId),
-  [pages, activePageId]
+    () => pages.find((p: Page) => p._id === activePageId),
+    [pages, activePageId]
   );
+  
+  // --- INIZIO MODIFICA ---
+  // 1. Leggi i dati dal Context
+  const { headings, backlinks } = useMobileDrawerData();
+  const [drawerContent, setDrawerContent] = useState<'toc' | 'backlinks' | null>(null);
+
+  const hasHeadings = headings.length > 0;
+  const hasBacklinks = backlinks.length > 0;
+  // --- FINE MODIFICA ---
 
   return (
-    <div 
-      className={`fixed top-0 left-0 right-0 z-10 flex items-center h-12 px-4 text-notion-text dark:text-notion-text-dark transition-all duration-300 ease-in-out`}
-      style={{ paddingLeft: isSidebarOpen ? 'calc(18rem + 1rem)' : '1rem' }} 
-    >
-      {!isSidebarOpen && (
-        <button 
-          onClick={toggleSidebar} 
-          className="p-2 -ml-2 mr-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark transition-colors"
-          aria-label="Open sidebar"
-        >
-          <MenuIcon className="w-5 h-5" />
-        </button>
-      )}
-
-      <nav className="flex items-center truncate flex-1 min-w-0">
-        {breadcrumbPath.map((page, index) => (
-          <React.Fragment key={page._id}>
-            <span
-              className="truncate cursor-pointer max-w-48 text-sm p-1 rounded hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
-              onClick={(e: React.MouseEvent) => {
-                if (e.metaKey || e.ctrlKey) {
-                  onOpenInSplitView(page._id);
-                } else {
-                  onSelectPage(page._id);
-                }
-              }}
-            >
-              {page.icon ? <span className="mr-1">{page.icon}</span> : null}
-              {page.title || 'Untitled'}
-            </span>
-            {index < breadcrumbPath.length - 1 && (
-              <ChevronRightIcon className="w-4 h-4 mx-1 flex-shrink-0 text-notion-text-gray dark:text-notion-text-gray-dark" />
-            )}
-          </React.Fragment>
-        ))}
-      </nav>
-
-      {/* --- MODIFICA: Aggiunto PomodoroTimer --- */}
-      <div className="flex items-center space-x-2 ml-auto pl-4">
-        <button
-          onClick={onOpenSpotlight}
-          className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md"
-          aria-label="Apri ricerca"
-          title="Search (Ctrl+Space)"
-        >
-          <SearchIcon className="w-4 h-4" />
-        </button>
-        <SaveStatusIndicator 
-          status={saveStatus}
-          lastSaveTime={lastSaveTime}
-          lastModified={lastModified} 
-          onSaveNow={onSaveNow} 
-        />
-        {/* --- 2. AGGIUNGI IL PULSANTE DI CONDIVISIONE --- */}
-        {activePage && (
-          <ShareMenu page={activePage} />
+    // 2. Usa un React.Fragment per il Portal
+    <React.Fragment>
+      <div 
+        className={`fixed top-0 left-0 right-0 z-10 flex items-center h-12 px-4 text-notion-text dark:text-notion-text-dark transition-all duration-300 ease-in-out`}
+        style={{ paddingLeft: isSidebarOpen ? 'calc(18rem + 1rem)' : '1rem' }} 
+      >
+        {!isSidebarOpen && (
+          <button 
+            onClick={toggleSidebar} 
+            className="p-2 -ml-2 mr-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark transition-colors"
+            aria-label="Open sidebar"
+          >
+            <MenuIcon className="w-5 h-5" />
+          </button>
         )}
-        <PomodoroTimer /> {/* <-- AGGIUNTO QUI */}
 
-        {/* --- FINE MODIFICA --- */}
-        <div className="flex-shrink-0">
-          <UserButton afterSignOutUrl="/" />
+        {/* Navigazione Breadcrumb (invariata) */}
+        <nav className="flex items-center truncate flex-1 min-w-0">
+          {breadcrumbPath.map((page, index) => (
+            <React.Fragment key={page._id}>
+              <span
+                className="truncate cursor-pointer max-w-48 text-sm p-1 rounded hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+                onClick={(e: React.MouseEvent) => {
+                  if (e.metaKey || e.ctrlKey) {
+                    onOpenInSplitView(page._id);
+                  } else {
+                    onSelectPage(page._id);
+                  }
+                }}
+              >
+                {page.icon ? <span className="mr-1">{page.icon}</span> : null}
+                {page.title || 'Untitled'}
+              </span>
+              {index < breadcrumbPath.length - 1 && (
+                <ChevronRightIcon className="w-4 h-4 mx-1 flex-shrink-0 text-notion-text-gray dark:text-notion-text-gray-dark" />
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+
+        {/* Controlli a destra */}
+        <div className="flex items-center space-x-2 ml-auto pl-4">
+          <button
+            onClick={onOpenSpotlight}
+            className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md"
+            aria-label="Apri ricerca"
+            title="Search (Ctrl+Space)"
+          >
+            <SearchIcon className="w-4 h-4" />
+          </button>
+          
+          <SaveStatusIndicator 
+            status={saveStatus}
+            lastSaveTime={lastSaveTime}
+            lastModified={lastModified} 
+            onSaveNow={onSaveNow} 
+          />
+          
+          {activePage && (
+            <ShareMenu page={activePage} />
+          )}
+          
+          <PomodoroTimer />
+
+          {/* --- 3. AGGIUNGI I PULSANTI MOBILI --- */}
+          {hasHeadings && (
+            <button
+              onClick={() => setDrawerContent('toc')}
+              className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md md:hidden"
+              aria-label="Apri indice"
+              title="Indice pagina"
+            >
+              <MenuIcon className="w-4 h-4" />
+            </button>
+          )}
+          {hasBacklinks && (
+            <button
+              onClick={() => setDrawerContent('backlinks')}
+              className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md md:hidden"
+              aria-label="Apri backlinks"
+              title="Backlinks"
+            >
+              <LinkIcon className="w-4 h-4" />
+            </button>
+          )}
+          {/* --- FINE 3. --- */}
+
+          <div className="flex-shrink-0">
+            <UserButton afterSignOutUrl="/" />
+          </div>
         </div>
       </div>
-      {/* --- FINE MODIFICA --- */}
-    </div>
+
+      {/* --- 4. RENDERIZZA IL DRAWER --- */}
+      <MobileDrawer
+        isOpen={drawerContent !== null}
+        onClose={() => setDrawerContent(null)}
+        title={drawerContent === 'toc' ? 'Indice Pagina' : 'Backlinks'}
+      >
+        {drawerContent === 'toc' && (
+          <TableOfContents
+            headings={headings}
+            pageId={activePageId!}
+            isSplitView={false}
+            mode="mobile" // Prop per la modalità mobile
+            onLinkClick={() => setDrawerContent(null)} // Chiudi al clic
+          />
+        )}
+        {drawerContent === 'backlinks' && activePage && (
+          <BacklinksList
+            backlinks={backlinks}
+            onSelectPage={(pageId) => {
+              onSelectPage(pageId); // Naviga
+              setDrawerContent(null); // Chiudi
+            }}
+            onOpenInSplitView={() => {}} // Non supportato qui
+            isSidebarOpen={false}
+            mode="mobile" // Prop per la modalità mobile
+          />
+        )}
+      </MobileDrawer>
+      {/* --- FINE 4. --- */}
+    </React.Fragment>
   );
 };
