@@ -232,11 +232,12 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           lastModified={lastModified} 
           onSaveNow={onSaveNow} 
         />
-        <PomodoroTimer /> {/* <-- AGGIUNTO QUI */}
         {/* --- 2. AGGIUNGI IL PULSANTE DI CONDIVISIONE --- */}
         {activePage && (
           <ShareMenu page={activePage} />
         )}
+        <PomodoroTimer /> {/* <-- AGGIUNTO QUI */}
+
         {/* --- FINE MODIFICA --- */}
         <div className="flex-shrink-0">
           <UserButton afterSignOutUrl="/" />
