@@ -4,7 +4,7 @@ import { mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { applyPatch } from "fast-json-patch";
 import { internal } from "./_generated/api"; 
-
+import { customAlphabet } from "nanoid";
 // 1. 'getSidebar' (invariato)
 export const getSidebar = query({
   args: { 
@@ -237,3 +237,80 @@ export const archive = mutation({
   }
 });
 
+export const togglePublicAccess = mutation({
+  args: {
+    id: v.id("pages"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const userId = identity.subject;
+    const existingPage = await ctx.db.get(args.id);
+    if (!existingPage) throw new Error("Not found");
+    if (existingPage.userId !== userId) throw new Error("Unauthorized");
+
+    // Se sta per diventare pubblico, genera un shareId
+    if (!existingPage.isPublic) {
+      // Genera un ID unico e non indovinabile
+      const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 10);
+      const shareId = nanoid();
+      
+      await ctx.db.patch(args.id, {
+        isPublic: true,
+        shareId: shareId,
+      });
+      return shareId;
+    } else {
+      // Se sta per diventare privato, rimuovi lo shareId
+      await ctx.db.patch(args.id, {
+        isPublic: false,
+        shareId: undefined,
+      });
+      return null;
+    }
+  },
+});
+
+// --- NUOVA QUERY PUBBLICA PER RECUPERARE I DATI ---
+// Nota: questa è 'query' e non 'internalQuery' e NON controlla l'identità.
+export const getPublicPageData = query({
+  args: {
+    shareId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // 1. Trova la pagina (metadati) usando l'indice
+    const page = await ctx.db
+      .query("pages")
+      .withIndex("by_shareId", (q) => q.eq("shareId", args.shareId))
+      .filter((q) => q.eq(q.field("isPublic"), true)) // Assicurati che sia pubblica
+      .unique();
+
+    if (!page) {
+      return null;
+    }
+
+    // 2. Trova il contenuto della pagina
+    const contentDoc = await ctx.db
+      .query("pageContent")
+      .withIndex("byPageId", (q) => q.eq("pageId", page._id))
+      .unique();
+
+    // 3. Trova i metadati delle sottopagine (per il componente SubPagesList)
+    const subPages = await ctx.db
+      .query("pages")
+      .withIndex("byUserAndParent", (q) =>
+        q.eq("userId", page.userId).eq("parentId", page._id)
+      )
+      .filter((q) => q.eq(q.field("isArchived"), false))
+      .order("asc")
+      .collect();
+
+    // 4. Restituisci tutto il necessario per il render
+    return {
+      page: page, // metadati della pagina
+      content: contentDoc?.content || "{}", // contenuto JSON
+      subPages: subPages, // metadati delle sottopagine
+    };
+  },
+});

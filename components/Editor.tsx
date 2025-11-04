@@ -1,4 +1,4 @@
-// components/Editor.tsx (Corretto)
+// components/Editor.tsx (Aggiornato con prop isReadOnly)
 
 import React, {
   useState,
@@ -58,7 +58,6 @@ import { BlockLinkComponent } from './BlockLinkComponent';
 import { BlockWrapperComponent } from './BlockWrapperComponent';
 import { SubPagesListComponent } from './SubPagesListComponent';
 import type { SaveStatus } from './BreadcrumbNav';
-// --- MODIFICA: Importa TextSelectionMenu ---
 import { TextSelectionMenu } from './TextSelectionMenu'; 
 import { BacklinksList, EnrichedBacklink } from './BacklinksList'; 
 //convex 
@@ -66,11 +65,12 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api'; 
 import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc } from '../convex/_generated/dataModel';
+
+// --- TagInput (Invariato) ---
 interface TagInputProps {
   pageTags: string[]; // Nomi dei tag su questa pagina
   onUpdatePageTags: (tags: string[]) => void;
 }
-
 const TagInput: React.FC<TagInputProps> = ({ pageTags, onUpdatePageTags }) => {
   const [inputValue, setInputValue] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -238,7 +238,10 @@ const TagInput: React.FC<TagInputProps> = ({ pageTags, onUpdatePageTags }) => {
     </div>
   );
 };
+// --- Fine TagInput ---
 
+
+// ... (definizioni Nodi: PageLink, BlockLink, SubPagesList, Column, Columns, Callout, CustomCodeBlock - Invariate) ...
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     callout: {
@@ -249,51 +252,11 @@ declare module '@tiptap/core' {
     };
   }
 }
-
 const lowlight = createLowlight();
 lowlight.register('javascript', javascript);
 lowlight.register('python', python);
 lowlight.register('c', c);
 lowlight.register('x86asm', x86asm);
-
-interface EditorProps {
-  page: Page;
-  initialContent: any;
-  pages: Page[];
-  pageTitlesMap: Map<string, string>;
-  blockPreviewsMap: Map<string, string>;
-  onUpdatePage: (
-    pageId: string,
-    updates: Partial<Omit<Page, '_id' | 'userId' | '_creationTime'>>
-  ) => Promise<void>;
-  onSelectPage: (pageId: string) => void;
-  onSelectBlock: (pageId: string, blockId: string) => void;
-  onTitleChange: (title: string) => void;
-  onContentChange: (content: any) => void;
-  
-  onCreateSubPage: (options?: {
-    navigate?: boolean;
-    insertLink?: boolean; 
-    title?: string; // Già presente dal nostro codice precedente
-  }) => Promise<Page | undefined>;
-  
-  scrollToBlockId: string | null;
-  onDoneScrolling: () => void;
-  onOpenInSplitView: (pageId: string, blockId?: string | null) => void;
-  onOpenAiPanel: () => void;
-  saveStatus: SaveStatus;
-  onSaveNow: () => Promise<void>;
-  isSplitView: boolean;
-  isSidebarOpen: boolean;
-}
-
-interface Heading {
-  id: string;
-  level: number;
-  text: string;
-}
-
-// ... (definizioni Nodi: PageLink, BlockLink, SubPagesList, Column, Columns, Callout, CustomCodeBlock - Invariate) ...
 const PageLink = Node.create({
   name: 'pageLink',
   group: 'inline',
@@ -326,7 +289,6 @@ const PageLink = Node.create({
     return ReactNodeViewRenderer(PageLinkComponent);
   },
 });
-
 const BlockLink = Node.create({
   name: 'blockLink',
   group: 'inline',
@@ -357,7 +319,6 @@ const BlockLink = Node.create({
     return ReactNodeViewRenderer(BlockLinkComponent);
   },
 });
-
 const SubPagesList = Node.create({
   name: 'subPagesList',
   group: 'block',
@@ -385,7 +346,6 @@ const SubPagesList = Node.create({
     return ReactNodeViewRenderer(SubPagesListComponent);
   },
 });
-
 const Column = Node.create({
   name: 'column',
   group: 'block',
@@ -451,7 +411,6 @@ const Callout = Node.create({
     };
   },
 });
-
 const CustomCodeBlock = CodeBlockLowlight.extend({
   draggable: true,
   addNodeView() {
@@ -529,7 +488,7 @@ const commandItems = ({
     icon: '🟫', 
     command: () =>
       editor.chain().focus()
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true }) // Tabella 3x3 con riga di intestazione
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
         .run(),
     aliases: ['tabella', 'table', 'db'],
   },
@@ -552,7 +511,6 @@ const commandItems = ({
     aliases: ['subpages', 'children', 'listpages'],
   },
 ];
-
 const SlashCommandMenu = forwardRef((props: any, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectItem = (index: number) => {
@@ -607,10 +565,8 @@ const SlashCommandMenu = forwardRef((props: any, ref) => {
     </div>
   );
 });
-
 const SlashCommand = Extension.create({
   name: 'slash-command',
-
   addOptions() {
     return {
       onCreateSubPage: async (options?: { navigate?: boolean; insertLink?: boolean; title?: string; }) => undefined as Page | undefined,
@@ -619,25 +575,17 @@ const SlashCommand = Extension.create({
       currentPageId: null as string | null,
     };
   },
-
   addProseMirrorPlugins() {
     return [
       Suggestion({
         editor: this.editor,
         char: '/',
-
         command: async ({ editor, range, props }) => {
           const insertionPos = range.from;
           editor.chain().focus().deleteRange(range).run();
-
           if (props.isPageCommand) {
             const newPage = await props.command();
-
             if (newPage && newPage._id) {
-              
-              // --- MODIFICA: Problema 1 (Untitled) ---
-              // Passiamo il titolo (che sarà 'Untitled' in questo caso)
-              // all'attributo del nodo, così non deve aspettare la cache.
               editor
                 .chain()
                 .focus()
@@ -645,16 +593,13 @@ const SlashCommand = Extension.create({
                   type: 'pageLink',
                   attrs: { 
                     pageId: newPage._id,
-                    title: newPage.title || 'Untitled' // <-- CORREZIONE
+                    title: newPage.title || 'Untitled' 
                   },
                 })
                 .insertContentAt(insertionPos + 1, ' ') 
                 .run();
-              // --- FINE MODIFICA ---
-
               const updatedContentObject = editor.getJSON();
               const updatedContentString = JSON.stringify(updatedContentObject);
-
               if (this.options.onUpdatePage && this.options.currentPageId) {
                 try {
                   await this.options.onUpdatePage(
@@ -675,7 +620,6 @@ const SlashCommand = Extension.create({
             props.command();
           }
         },
-
         items: ({ query }) =>
           commandItems({
             editor: this.editor,
@@ -687,7 +631,6 @@ const SlashCommand = Extension.create({
                 item.aliases?.some((alias) => alias.includes(query.toLowerCase()))
             )
             .slice(0, 10),
-
         render: () => {
           let component: any, popup: any;
           return {
@@ -733,7 +676,6 @@ const SlashCommand = Extension.create({
 
 // ... (Estensioni DnD e ColumnCleanup - Invariate) ...
 const columnDragPluginKey = new PluginKey('columnDrag');
-
 const getDragTarget = (view: any, event: DragEvent) => {
   const targetElement = document.elementFromPoint(event.clientX, event.clientY);
   if (!targetElement) {
@@ -768,7 +710,6 @@ const getDragTarget = (view: any, event: DragEvent) => {
   }
   return { targetNode, nodeStartPos, side };
 }
-
 const ColumnDragHandler = Extension.create({
   name: 'columnDragHandler',
   addProseMirrorPlugins() {
@@ -923,7 +864,6 @@ const ColumnDragHandler = Extension.create({
     ];
   },
 });
-
 const isEmptyColumn = (node: any) => {
   if (!node || node.type.name !== 'column') return false;
   if (node.childCount === 0) return true;
@@ -935,7 +875,6 @@ const isEmptyColumn = (node: any) => {
   }
   return false;
 };
-
 const ColumnCleanup = Extension.create({
   name: 'columnCleanup',
   addProseMirrorPlugins() {
@@ -983,7 +922,49 @@ const ColumnCleanup = Extension.create({
   },
 });
 
-// --- Componente Editor ---
+
+// --- MODIFICA 1: Aggiorna Interfaccia Props ---
+interface EditorProps {
+  page: Page;
+  initialContent: any;
+  pages: Page[];
+  pageTitlesMap: Map<string, string>;
+  blockPreviewsMap: Map<string, string>;
+  onUpdatePage: (
+    pageId: string,
+    updates: Partial<Omit<Page, '_id' | 'userId' | '_creationTime'>>
+  ) => Promise<void>;
+  onSelectPage: (pageId: string) => void;
+  onSelectBlock: (pageId: string, blockId: string) => void;
+  onTitleChange: (title: string) => void;
+  onContentChange: (content: any) => void;
+  
+  onCreateSubPage: (options?: {
+    navigate?: boolean;
+    insertLink?: boolean; 
+    title?: string;
+  }) => Promise<Page | undefined>;
+  
+  scrollToBlockId: string | null;
+  onDoneScrolling: () => void;
+  onOpenInSplitView: (pageId: string, blockId?: string | null) => void;
+  onOpenAiPanel: () => void;
+  saveStatus: SaveStatus;
+  onSaveNow: () => Promise<void>;
+  isSplitView: boolean;
+  isSidebarOpen: boolean;
+  
+  // --- NUOVA PROP ---
+  isReadOnly?: boolean; 
+}
+// --- FINE MODIFICA 1 ---
+
+interface Heading {
+  id: string;
+  level: number;
+  text: string;
+}
+
 export type EditorHandle = {
   getEditor: () => TiptapEditor | null;
 };
@@ -1007,24 +988,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   saveStatus,
   onSaveNow,
   isSplitView, 
-  isSidebarOpen
+  isSidebarOpen,
+  // --- MODIFICA 2: Ricevi la prop e imposta un default ---
+  isReadOnly = false, 
 }, ref) => {
   
   const [headings, setHeadings] = useState<Heading[]>([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [title, setTitle] = useState(page.title || '');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // --- INIZIO MODIFICA 1: Aggiungi questi due ganci ---
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  // Questo effetto imposta l'altezza iniziale corretta quando la pagina si carica
   useEffect(() => {
     if (titleRef.current) {
-      titleRef.current.style.height = 'auto'; // Resetta l'altezza
-      titleRef.current.style.height = `${titleRef.current.scrollHeight}px`; // Imposta l'altezza al contenuto
+      titleRef.current.style.height = 'auto'; 
+      titleRef.current.style.height = `${titleRef.current.scrollHeight}px`; 
     }
-  }, [page.title]); // Esegui quando il titolo della pagina (dalle props) cambia
-  // --- FINE MODIFICA 1 ---
+  }, [page.title]);
+  
   const updateHeadingsFromEditor = useCallback((editor: TiptapEditor) => {
     const newHeadings: Heading[] = [];
     editor.state.doc.forEach((node) => {
@@ -1038,6 +1019,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
     });
     setHeadings(newHeadings);
   }, []); 
+
   const backlinks = useQuery(api.links.getBacklinksForPage, {
     pageId: page._id,
   });
@@ -1072,10 +1054,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   }, []); 
 
   const debouncedOnTitleChange = useMemo(() => {
-    // Chiama solo onTitleChange (la prop da App.tsx)
     return debounce((newTitle: string) => {
         onTitleChange(newTitle);
-    }, 2000); // 2 secondi di debounce
+    }, 2000); 
   }, [onTitleChange]);
 
   const pagesRef = React.useRef(pages);
@@ -1089,6 +1070,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
 
   const editor = useEditor(
     {
+      // --- MODIFICA 3: Imposta la modalità di modifica ---
+      editable: !isReadOnly,
+      // --- FINE MODIFICA 3 ---
+      
       extensions: [
         StarterKit.configure({
           paragraph: false,
@@ -1099,18 +1084,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         ColumnDragHandler,
         Dropcursor.configure({ color: '#60A5FA', width: 2 }),
         Paragraph.extend({
-          draggable: true,
+          draggable: !isReadOnly, // <-- MODIFICA
           addNodeView() {
             return ReactNodeViewRenderer(BlockWrapperComponent);
           },
         }),
         Heading.extend({
-          draggable: true,
+          draggable: !isReadOnly, // <-- MODIFICA
           addNodeView() {
             return ReactNodeViewRenderer(BlockWrapperComponent);
           },
         }),
-        CustomCodeBlock.configure({ lowlight }),
+        CustomCodeBlock.extend({
+          draggable: !isReadOnly // <-- MODIFICA
+        }).configure({ lowlight }),
         UniqueID.configure({
           types: [
             'heading',
@@ -1127,8 +1114,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           ],
         }),
         Table.configure({
-          resizable: true, // Abilita il ridimensionamento delle colonne
-          draggable: true, // Abilita il drag and drop dell'intera tabella
+          resizable: true, 
+          draggable: !isReadOnly, // <-- MODIFICA
         }),
         TableRow,
         TableCell,
@@ -1155,13 +1142,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           blockPreviews: blockPreviewsMap,
           onOpenInSplitView: onOpenInSplitView,
         }),
-        SlashCommand.configure({
+        
+        // --- MODIFICA 4: Disabilita comandi e placeholder se read-only ---
+        !isReadOnly && SlashCommand.configure({
           onCreateSubPage,
           onSelectPage,
           onUpdatePage: onUpdatePage,
           currentPageId: page._id,
         }),
-        Placeholder.configure({
+        !isReadOnly && Placeholder.configure({
           emptyNodeClass: 'is-empty',
           placeholder: ({ editor, node, pos }) => {
             if (node.type.name === 'codeBlock') {
@@ -1173,13 +1162,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             return null;
           },
         }),
-      ],
+        // --- FINE MODIFICA 4 ---
+      ].filter(Boolean) as any, // Filtra i valori 'false'
+      
       content: initialContent,
       onCreate: ({ editor }) => {
         updateHeadingsFromEditor(editor);
       },
       
       onUpdate: ({ editor }) => {
+        if (isReadOnly) return; // Non fare nulla se in sola lettura
         onContentChange(editor.getJSON());
         const newHeadings: Heading[] = [];
         editor.state.doc.forEach((node) => {
@@ -1200,6 +1192,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl focus:outline-none dark:prose-invert max-w-none ',
           },
         handlePaste: (view, event, slice) => {
+          if (isReadOnly) return true; // Impedisci il paste
           const text = event.clipboardData?.getData('text/plain') || '';
           const blockLinkRegex = /#([a-zA-Z0-9-]+):([a-zA-Z0-9-]+)$/;
           const match = text.trim().match(blockLinkRegex);
@@ -1230,12 +1223,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         },
       },
     },
-    [page._id, getPageById]
+    [page._id, getPageById, isReadOnly] // <-- MODIFICA: Aggiungi isReadOnly alle dipendenze
   );
 
-  // --- MODIFICA: Problema 1 & 2 ---
   const handleCreatePageFromSelection = useCallback(async () => {
-    if (!editor || editor.state.selection.empty) {
+    if (!editor || editor.state.selection.empty || isReadOnly) {
       return;
     }
 
@@ -1256,12 +1248,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
       });
 
       if (newPage && newPage._id) {
-        // 2. Sostituisci il testo con il pageLink
         editor.chain()
           .focus()
-          // 1. Usa la selezione corrente {from, to} per cancellare il testo
           .deleteRange({ from, to }) 
-          // 2. Inserisci il pageLink nella posizione del cursore (che ora è 'from')
           .insertContent({
             type: 'pageLink',
             attrs: {
@@ -1271,21 +1260,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           })
           .run();
           
-        // --- CORREZIONE PROBLEMA 2 (Autosalvataggio) ---
-        // 3. Forza salvataggio immediato
         const updatedContent = editor.getJSON();
-        // Avvisa App.tsx che il contenuto è dirty
         onContentChange(updatedContent); 
-        // Chiama la funzione di salvataggio immediato
         await onSaveNow(); 
-        // --- FINE CORREZIONE ---
       }
     } catch (e) {
       console.error("Failed to create page from selection", e);
     }
 
-  }, [editor, onCreateSubPage, onContentChange, onSaveNow]);
-  // --- FINE MODIFICA ---
+  }, [editor, onCreateSubPage, onContentChange, onSaveNow, isReadOnly]);
   
   useImperativeHandle(ref, () => ({
     getEditor: () => editor,
@@ -1295,7 +1278,7 @@ useEffect(() => {
   if (document.activeElement !== titleRef.current) {
     setTitle(page.title || '');
   }
-}, [page.title]); // Dipende solo dalla prop in ingresso
+}, [page.title]); 
 
   useEffect(() => {
     if (scrollToBlockId && editor) {
@@ -1349,19 +1332,24 @@ useEffect(() => {
       ref={scrollContainerRef} 
       className="h-full overflow-y-auto pt-12 scrollbar-none"
     >
-      <TableOfContents 
-        headings={headings} 
-        pageId={page._id} 
-        isSplitView={isSplitView} 
-      />
-        {backlinks && backlinks.length > 0 && (
-          <BacklinksList
-            isSidebarOpen={isSidebarOpen}
-            backlinks={backlinks as EnrichedBacklink[]}
-            onSelectPage={onSelectPage}
-            onOpenInSplitView={onOpenInSplitView}
-          />
-        )}
+      {/* --- MODIFICA 5: Nascondi TOC se read-only --- */}
+      {!isReadOnly && (
+        <TableOfContents 
+          headings={headings} 
+          pageId={page._id} 
+          isSplitView={isSplitView} 
+        />
+      )}
+      {/* --- FINE MODIFICA 5 --- */}
+        
+      {backlinks && backlinks.length > 0 && (
+        <BacklinksList
+          isSidebarOpen={isSidebarOpen}
+          backlinks={backlinks as EnrichedBacklink[]}
+          onSelectPage={onSelectPage}
+          onOpenInSplitView={onOpenInSplitView}
+        />
+      )}
         
       <div className="max-w-4xl mx-auto px-4 sm:px-8 lg:px-12 relative">
       
@@ -1372,22 +1360,26 @@ useEffect(() => {
               alt="Cover" 
               className="w-full h-full object-cover" 
             />
-            <button
-              onClick={() => onUpdatePage(page._id, { coverImage: undefined })}
-              className="absolute top-2 right-2 z-10 p-1 bg-white/70 dark:bg-black/70 rounded shadow text-notion-text dark:text-notion-text-dark opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-            >
-              Remove Cover
-            </button>
+            {/* --- MODIFICA 6: Nascondi pulsante "Remove" --- */}
+            {!isReadOnly && (
+              <button
+                onClick={() => onUpdatePage(page._id, { coverImage: undefined })}
+                className="absolute top-2 right-2 z-10 p-1 bg-white/70 dark:bg-black/70 rounded shadow text-notion-text dark:text-notion-text-dark opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+              >
+                Remove Cover
+              </button>
+            )}
+            {/* --- FINE MODIFICA 6 --- */}
           </div>
         )}
 
-
         <div className="relative">
-        
           <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}>
+            {/* --- MODIFICA 7: Disabilita picker emoji --- */}
             <button
-              onClick={() => setIsPickerOpen(true)}
-              className="text-4xl block hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded p-1 bg-white dark:bg-notion-bg-dark shadow"
+              onClick={() => !isReadOnly && setIsPickerOpen(true)}
+              disabled={isReadOnly}
+              className="text-4xl block hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded p-1 bg-white dark:bg-notion-bg-dark shadow disabled:hover:bg-transparent"
               aria-label="Add icon"
             >
               {page.icon ? (
@@ -1396,7 +1388,7 @@ useEffect(() => {
                 <NewPageIcon className="w-8 h-8 text-notion-text-gray dark:text-notion-text-gray-dark" />
               )}
             </button>
-            {isPickerOpen && (
+            {isPickerOpen && !isReadOnly && (
               <div className="absolute top-0 left-0 z-10">
                 <EmojiPicker
                   onSelect={(emoji) => {
@@ -1407,9 +1399,11 @@ useEffect(() => {
                 />
               </div>
             )}
+            {/* --- FINE MODIFICA 7 --- */}
           </div>
 
-          {!page.coverImage && (
+          {/* --- MODIFICA 8: Nascondi "Add Cover" --- */}
+          {!page.coverImage && !isReadOnly && (
             <button
               onClick={() => onUpdatePage(page._id, { 
                 coverImage: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%D&auto=format&fit=crop&w=1500&q=80" 
@@ -1419,26 +1413,24 @@ useEffect(() => {
               Add Cover
             </button>
           )}
+          {/* --- FINE MODIFICA 8 --- */}
 
+          {/* --- MODIFICA 9: Disabilita input titolo --- */}
           <textarea
             ref={titleRef}
             rows={1}
             value={title}
             onChange={(e) => {
-              setTitle(e.target.value); // 1. Aggiorna stato locale
-              debouncedOnTitleChange(e.target.value); // 2. Pianifica salvataggio
-
-              // Logica di auto-resize
+              setTitle(e.target.value);
+              debouncedOnTitleChange(e.target.value);
               e.currentTarget.style.height = 'auto';
               e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
             }}
             onBlur={() => {
-              // 3. Salva immediatamente quando l'utente clicca via
-              debouncedOnTitleChange.cancel(); // Annulla il salvataggio pianificato
-              onTitleChange(title); // Salva il valore *corrente*
+              debouncedOnTitleChange.cancel(); 
+              onTitleChange(title);
             }}
             onKeyDown={(e) => {
-              // Impedisci di andare a capo e scatena l'onBlur
               if (e.key === 'Enter') {
                 e.preventDefault();
                 e.currentTarget.blur();
@@ -1446,72 +1438,77 @@ useEffect(() => {
             }}
             placeholder="Untitled"
             className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4 resize-none overflow-hidden"
+            disabled={isReadOnly} // <-- Aggiunto disabled
           />
+          {/* --- FINE MODIFICA 9 --- */}
         </div>
 
 
-        {/* Sezione Metadati (Invariata) */}
-        <div className="border-y border-notion-border dark:border-notion-border-dark mb-6 py-4 space-y-3">
-          
-          <div className="flex items-center text-sm">
-            <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark">Status</span>
-            {page.isPinned ? (
-              <div className="flex items-center gap-2">
-                <span className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full">📌 Pinned</span>
-                <button 
-                  onClick={() => onUpdatePage(page._id, { isPinned: false })}
-                  className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:text-red-500"
-                >
-                  (unpin)
-                </button>
+        {/* --- MODIFICA 10: Nascondi Metadati e BubbleMenu --- */}
+        {!isReadOnly && (
+          <>
+            <div className="border-y border-notion-border dark:border-notion-border-dark mb-6 py-4 space-y-3">
+              <div className="flex items-center text-sm">
+                <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark">Status</span>
+                {page.isPinned ? (
+                  <div className="flex items-center gap-2">
+                    <span className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full">📌 Pinned</span>
+                    <button 
+                      onClick={() => onUpdatePage(page._id, { isPinned: false })}
+                      className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:text-red-500"
+                    >
+                      (unpin)
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                      onClick={() => onUpdatePage(page._id, { isPinned: true })}
+                      className="text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:text-notion-text dark:hover:text-notion-text-dark"
+                    >
+                      Pin this page
+                    </button>
+                )}
               </div>
-            ) : (
-               <button 
-                  onClick={() => onUpdatePage(page._id, { isPinned: true })}
-                  className="text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:text-notion-text dark:hover:text-notion-text-dark"
-                >
-                  Pin this page
-                </button>
-            )}
-          </div>
-          
-          <div className="flex items-start">
-             <span className="w-24 text-sm font-medium text-notion-text-gray dark:text-notion-text-gray-dark pt-1">Tags</span>
-            <div className="flex-1">
-              <TagInput
-                pageTags={page.tags || []} 
-                onUpdatePageTags={(newTags) => onUpdatePage(page._id, { tags: newTags })}
-              />
-            </div>
-          </div>
-          
-          {page.properties && Object.keys(page.properties).length > 0 && (
-             <>
-              {Object.entries(page.properties).map(([key, value]) => (
-                <div key={key} className="flex items-center text-sm">
-                   <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark capitalize">{key}</span>
-                   <span className="text-notion-text dark:text-notion-text-dark">{String(value)}</span>
+              
+              <div className="flex items-start">
+                <span className="w-24 text-sm font-medium text-notion-text-gray dark:text-notion-text-gray-dark pt-1">Tags</span>
+                <div className="flex-1">
+                  <TagInput
+                    pageTags={page.tags || []} 
+                    onUpdatePageTags={(newTags) => onUpdatePage(page._id, { tags: newTags })}
+                  />
                 </div>
-              ))}
-             </>
-          )}
-        </div>
+              </div>
+              
+              {page.properties && Object.keys(page.properties).length > 0 && (
+                <>
+                  {Object.entries(page.properties).map(([key, value]) => (
+                    <div key={key} className="flex items-center text-sm">
+                      <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark capitalize">{key}</span>
+                      <span className="text-notion-text dark:text-notion-text-dark">{String(value)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
 
-
-        {editor && (
-          <BubbleMenu
-            editor={editor}
-            tippyOptions={{ duration: 100, placement: 'top-start' }}
-            className="flex items-center gap-1 bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark p-1"
-          >
-            <TextSelectionMenu 
-              editor={editor} 
-              onOpenAiPanel={onOpenAiPanel}
-              // Passa la funzione corretta
-              onCreatePageFromSelection={handleCreatePageFromSelection} 
-            />
-          </BubbleMenu>
+            {editor && (
+              <BubbleMenu
+                editor={editor}
+                tippyOptions={{ duration: 100, placement: 'top-start' }}
+                className="flex items-center gap-1 bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark p-1"
+              >
+                <TextSelectionMenu 
+                  editor={editor} 
+                  onOpenAiPanel={onOpenAiPanel}
+                  onCreatePageFromSelection={handleCreatePageFromSelection} 
+                />
+              </BubbleMenu>
+            )}
+          </>
         )}
+        {/* --- FINE MODIFICA 10 --- */}
+
         <EditorContent editor={editor} />
         
         <div className="h-32" /> 

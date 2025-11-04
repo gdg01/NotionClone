@@ -5,6 +5,7 @@ import { UserButton } from '@clerk/clerk-react';
 import type { Page } from '../App';
 import { MenuIcon, ChevronRightIcon, SaveIcon, SearchIcon } from './icons';
 import { PomodoroTimer } from './PomodoroTimer'; // <-- IMPORTA IL NUOVO COMPONENTE
+import { ShareMenu } from './ShareMenu';
 
 export type SaveStatus = "Idle" | "Dirty" | "Saving" | "Saved";
 
@@ -171,6 +172,12 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
     return path;
   }, [pages, activePageId]);
 
+
+  const activePage = useMemo(
+  () => pages.find((p: Page) => p._id === activePageId),
+  [pages, activePageId]
+  );
+
   return (
     <div 
       className={`fixed top-0 left-0 right-0 z-10 flex items-center h-12 px-4 text-notion-text dark:text-notion-text-dark transition-all duration-300 ease-in-out`}
@@ -226,7 +233,11 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           onSaveNow={onSaveNow} 
         />
         <PomodoroTimer /> {/* <-- AGGIUNTO QUI */}
-
+        {/* --- 2. AGGIUNGI IL PULSANTE DI CONDIVISIONE --- */}
+        {activePage && (
+          <ShareMenu page={activePage} />
+        )}
+        {/* --- FINE MODIFICA --- */}
         <div className="flex-shrink-0">
           <UserButton afterSignOutUrl="/" />
         </div>

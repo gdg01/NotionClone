@@ -34,6 +34,7 @@
     "lodash": "^4.17.21",
     "lowlight": "^3.3.0",
     "marked": "^16.4.1",
+    "nanoid": "^5.1.6",
     "prosemirror-state": "^1.4.3",
     "prosemirror-view": "^1.33.6",
     "react": "^19.2.0",

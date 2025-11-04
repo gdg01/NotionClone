@@ -3,23 +3,26 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Le tue tabelle esistenti
   pages: defineTable({
     title: v.string(),
     userId: v.string(),
     icon: v.optional(v.string()),
     parentId: v.optional(v.id("pages")),
     isArchived: v.boolean(),
-    coverImage: v.optional(v.string()), // URL dell'immagine di copertina
-    tags: v.optional(v.array(v.string())), // Array di tag
-    isPinned: v.optional(v.boolean()), // Per "fissare" le note
-
-    // Per proprietà personalizzate (es. Stato: "In corso", Priorità: "Alta")
-    // v.any() permette di salvare qualsiasi oggetto JSON valido.
+    coverImage: v.optional(v.string()), 
+    tags: v.optional(v.array(v.string())), 
+    isPinned: v.optional(v.boolean()), 
     properties: v.optional(v.any()),
+    
+    // --- NUOVI CAMPI PER LA CONDIVISIONE ---
+    isPublic: v.optional(v.boolean()),
+    shareId: v.optional(v.string()), // ID unico per il link pubblico
+    // --- FINE NUOVI CAMPI ---
   })
     .index("byUser", ["userId"])
-    .index("byUserAndParent", ["userId", "parentId"]),
+    .index("byUserAndParent", ["userId", "parentId"])
+    // --- NUOVO INDICE PER LA CONDIVISIONE ---
+    .index("by_shareId", ["shareId"]),
 
   pageContent: defineTable({
     pageId: v.id("pages"),
@@ -27,11 +30,10 @@ export default defineSchema({
   }).index("byPageId", ["pageId"]),
 
   tags: defineTable({
-    name: v.string(), // Il nome del tag (es. "lavoro")
-    userId: v.string(), // Per chi è questo tag
-    color: v.string(), // Il NOME del colore (es. "red", "blue")
+    name: v.string(), 
+    userId: v.string(), 
+    color: v.string(), 
   })
-    // Indice per trovare/creare tag e garantirne l'unicità per utente
     .index("byUserAndName", ["userId", "name"]),
 
   textBlocks: defineTable({
@@ -47,30 +49,19 @@ export default defineSchema({
       filterFields: ["pageId"],
     }),
 
-  // --- NUOVA TABELLA PER LA CODA ---
   embeddingQueue: defineTable({
     pageId: v.id("pages"),
     contentJson: v.string(),
-  }).index("by_pageId", ["pageId"]), // Indice per cercare per pageId
+  }).index("by_pageId", ["pageId"]), 
 
   backlinks: defineTable({
-    // La pagina che CONTIENE il link (Pagina A)
     sourcePageId: v.id("pages"),
-    // L'utente a cui appartiene questo link (per sicurezza)
     userId: v.string(),
-
-    // La pagina a CUI PUNTA il link (Pagina B)
     targetPageId: v.id("pages"),
-    // Opzionale: l'ID del blocco a cui punta (per i BlockLink)
     targetBlockId: v.optional(v.string()),
-
-    // Un piccolo frammento di testo per dare contesto
     snippet: v.string(),
   })
-    // L'INDICE CHIAVE: Permette di trovare velocemente tutti i link
-    // che puntano a una specifica 'targetPageId'.
     .index("by_target", ["userId", "targetPageId"])
-    // Un altro indice utile per pulire i vecchi link
     .index("by_source", ["userId", "sourcePageId"]),
 
     tasks: defineTable({
@@ -78,7 +69,7 @@ export default defineSchema({
       userId: v.string(),
       pageId: v.id("pages"), 
       status: v.string(),
-      description: v.optional(v.string()), // <-- CAMPO AGGIUNTO
+      description: v.optional(v.string()), 
     })
       .index("byUser", ["userId"])
       .index("byUserAndPage", ["userId", "pageId"]),
