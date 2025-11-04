@@ -725,3 +725,21 @@
 
 
 
+.page-link {
+  /* Assicura che il link (il contenitore inline-flex)
+     non possa mai essere più largo del suo genitore. */
+  max-width: 100%;
+}
+
+.page-link .truncate {
+  /* Sovrascriviamo la classe 'truncate' di Tailwind 
+     SOLO all'interno dei nostri .page-link */
+  
+  white-space: normal;  /* 1. Permetti al testo di andare a capo */
+  overflow: visible;    /* 2. Mostra il testo che va a capo (invece di nasconderlo) */
+  text-overflow: clip;  /* 3. Non aggiungere i puntini "..." */
+  
+  /* 4. (Opzionale ma raccomandato) 
+        Rompe parole molto lunghe se non entrano */
+  word-break: break-word; 
+}
