@@ -5,7 +5,6 @@ import { useConvexAuth, useQuery, useMutation, useConvex } from 'convex/react';
 import { SignInButton, UserButton } from '@clerk/clerk-react';
 import { api } from './convex/_generated/api';
 import type { Doc, Id } from './convex/_generated/dataModel';
-import "./styles/global.css";
 import { Sidebar } from './components/Sidebar';
 import { Editor, type EditorHandle } from './components/Editor';
 import { AiSidebar } from './components/AiSidebar';

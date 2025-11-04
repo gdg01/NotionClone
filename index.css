@@ -1,0 +1,727 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.ProseMirror {
+        outline: none;
+        padding-top: 1rem;
+        padding-bottom: 8rem;
+      }
+      .ProseMirror .is-empty::before {
+        content: attr(data-placeholder);
+        float: left;
+        color: #9b9a97;
+        pointer-events: none;
+        height: 0;
+      }
+      .ProseMirror h1, .ProseMirror h2, .ProseMirror h3 {
+        scroll-margin-top: 2rem; /* Add space when scrolling to headings */
+      }
+      .ProseMirror h1 {
+        font-size: 2.25em;
+        font-weight: 700;
+        line-height: 1.2;
+        margin-bottom: 0.5em;
+      }
+      .ProseMirror h2 {
+        font-size: 1.75em;
+        font-weight: 700;
+        line-height: 1.2;
+        margin-bottom: 0.4em;
+      }
+      .ProseMirror h3 {
+        font-size: 1.25em;
+        font-weight: 700;
+        line-height: 1.2;
+        margin-bottom: 0.3em;
+      }
+      .ProseMirror p {
+        margin-bottom: 0.5em;
+        line-height: 1.6;
+      }
+       .ProseMirror ul, .ProseMirror ol {
+        padding-left: 1.5rem;
+        margin-bottom: 1em;
+      }
+      .ProseMirror ul li {
+        list-style-type: disc;
+      }
+      .ProseMirror ol li {
+        list-style-type: decimal;
+      }
+      .ProseMirror li p {
+        margin-bottom: 0.2em;
+      }
+      .ProseMirror blockquote {
+        border-left: 3px solid #ced4da;
+        padding-left: 1rem;
+        margin-left: 0;
+        color: #6c757d;
+      }
+       .ProseMirror pre {
+        background: #f1f3f5;
+        color: #343a40;
+        font-family: 'JetBrainsMono', monospace;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        position: relative; /* For language selector positioning */
+        min-height: 3rem; /* Ensure empty code blocks have a visible height */
+      }
+      .ProseMirror code {
+        background: rgba(97, 97, 97, 0.1);
+        border-radius: 4px;
+        padding: 2px 4px;
+        font-family: 'JetBrainsMono', monospace;
+        color: #eb5757;
+      }
+      .ProseMirror pre code {
+        background: none;
+        color: inherit;
+        padding: 0;
+        font-size: 0.9em;
+      }
+       .ProseMirror hr {
+        border: none;
+        border-top: 1px solid #edece9;
+        margin: 1em 0;
+      }
+
+      /* Dark Mode ProseMirror Styles */
+      .dark .ProseMirror {
+        color: #e2e2e2;
+      }
+      .dark .ProseMirror .is-empty::before {
+        color: #8a8a8a;
+      }
+      .dark .ProseMirror h1,
+      .dark .ProseMirror h2,
+      .dark .ProseMirror h3 {
+        color: #e2e2e2;
+      }
+      .dark .ProseMirror blockquote {
+        border-left-color: #3a3a3a;
+        color: #8a8a8a;
+      }
+      .dark .ProseMirror pre {
+        background: #2b2b2b;
+        color: #e2e2e2;
+      }
+      .dark .ProseMirror code {
+        background: rgba(180, 180, 180, 0.1);
+        color: #ff8b8b;
+      }
+      .dark .ProseMirror pre code {
+        background: none;
+      }
+      .dark .ProseMirror hr {
+        border-top-color: #3a3a3a;
+      }
+      
+      /* Column Layout Styles */
+      .ProseMirror [data-type="columns"] {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+        position: relative; /* For handle positioning */
+      }
+      .ProseMirror [data-type="column"] {
+        flex: 1;
+        min-width: 0;
+        border: 1px dashed #ced4da;
+        border-radius: 4px;
+        padding: 0.5rem;
+      }
+      .dark .ProseMirror [data-type="column"] {
+          border-color: #3a3a3a;
+      }
+      .ProseMirror [data-type="column"] > :first-child {
+          margin-top: 0;
+      }
+      .ProseMirror [data-type="column"] > :last-child {
+          margin-bottom: 0;
+      }
+
+      /* Column Drag Handle */
+      .ProseMirror [data-type="columns"]::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        background-color: #d5d5d3;
+        border-radius: 4px;
+        cursor: col-resize;
+        opacity: 0;
+        pointer-events: none; /* No functionality for now */
+        transition: opacity 0.2s ease-in-out;
+      }
+      .dark .ProseMirror [data-type="columns"]::after {
+        background-color: #3f3f3f;
+      }
+      .ProseMirror [data-type="columns"]:hover::after {
+        opacity: 1;
+      }
+
+      /* Responsive stacking */
+      @media (max-width: 768px) {
+          .ProseMirror [data-type="columns"] {
+              flex-direction: column;
+          }
+          .ProseMirror [data-type="columns"]::after {
+            display: none; /* Hide handle on mobile */
+          }
+      }
+
+      
+
+
+      /* Tippy.js custom styling for slash command menu */
+      .tippy-box {
+        background-color: transparent !important;
+        box-shadow: none !important;
+      }
+      .tippy-arrow {
+        display: none !important;
+      }
+      .tippy-content {
+        padding: 0 !important;
+      }
+      
+      /* TOC Animation */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateX(10px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.2s ease-out forwards;
+      }
+
+      /* Syntax Highlighting Styles (Atom One Light/Dark) */
+      .ProseMirror pre .hljs-comment,.ProseMirror pre .hljs-quote{color:#a0a1a7;font-style:italic}.ProseMirror pre .hljs-doctag,.ProseMirror pre .hljs-formula,.ProseMirror pre .hljs-keyword{color:#a626a4}.ProseMirror pre .hljs-name,.ProseMirror pre .hljs-section,.ProseMirror pre .hljs-selector-tag,.ProseMirror pre .hljs-strong{font-weight:700}.ProseMirror pre .hljs-literal,.ProseMirror pre .hljs-number,.ProseMirror pre .hljs-regexp,.ProseMirror pre .hljs-string,.ProseMirror pre .hljs-template-variable,.ProseMirror pre .hljs-variable{color:#50a14f}.ProseMirror pre .hljs-addition,.ProseMirror pre .hljs-meta,.ProseMirror pre .hljs-string,.ProseMirror pre .hljs-symbol,.ProseMirror pre .hljs-template-tag{color:#50a14f}.ProseMirror pre .hljs-built_in,.ProseMirror pre .hljs-class .hljs-title{color:#c18401}.ProseMirror pre .hljs-attr,.ProseMirror pre .hljs-attribute,.ProseMirror pre .hljs-type{color:#986801}.ProseMirror pre .hljs-bullet,.ProseMirror pre .hljs-link,.ProseMirror pre .hljs-selector-attr,.ProseMirror pre .hljs-selector-class,.ProseMirror pre .hljs-selector-id,.ProseMirror pre .hljs-selector-pseudo,.ProseMirror pre .hljs-symbol{color:#4078f1}.ProseMirror pre .hljs-tag{color:#383a42}.ProseMirror pre .hljs-title{color:#4078f1}.ProseMirror pre .hljs-deletion{color:#e45649}.ProseMirror pre .hljs-meta{color:#383a42}.ProseMirror pre .hljs-emphasis{font-style:italic}.dark .ProseMirror pre{color:#abb2bf;background:#282c34}.dark .ProseMirror pre .hljs-comment,.dark .ProseMirror pre .hljs-quote{color:#5c6370;font-style:italic}.dark .ProseMirror pre .hljs-attr,.dark .ProseMirror pre .hljs-doctag,.dark .ProseMirror pre .hljs-keyword,.dark .ProseMirror pre .hljs-name,.dark .ProseMirror pre .hljs-selector-tag{color:#c678dd}.dark .ProseMirror pre .hljs-deletion,.dark .ProseMirror pre .hljs-number,.dark .ProseMirror pre .hljs-regexp,.dark .ProseMirror pre .hljs-string,.dark .ProseMirror pre .hljs-template-variable,.dark .ProseMirror pre .hljs-variable{color:#d19a66}.dark .ProseMirror pre .hljs-built_in,.dark .ProseMirror pre .hljs-class .hljs-title,.dark .ProseMirror pre .hljs-literal{color:#e5c07b}.dark .ProseMirror pre .hljs-addition,.dark .ProseMirror pre .hljs-meta,.dark .ProseMirror pre .hljs-string,.dark .ProseMirror pre .hljs-symbol,.dark .ProseMirror pre .hljs-template-tag,.dark .ProseMirror pre .hljs-type{color:#98c379}.dark .ProseMirror pre .hljs-bullet,.dark .ProseMirror pre .hljs-link,.dark .ProseMirror pre .hljs-selector-attr,.dark .ProseMirror pre .hljs-selector-class,.dark .ProseMirror pre .hljs-selector-id,.dark .ProseMirror pre .hljs-selector-pseudo,.dark .ProseMirror pre .hljs-symbol{color:#61afef}.dark .ProseMirror pre .hljs-emphasis{font-style:italic}.dark .ProseMirror pre .hljs-section,.dark .ProseMirror pre .hljs-strong,.dark .ProseMirror pre .hljs-tag,.dark .ProseMirror pre .hljs-title{color:#e06c75}
+      
+      /* Drag & Drop Styles */
+      .ProseMirror-dragging > * {
+        opacity: 0.3; /* Make dragged item semi-transparent */
+      }
+      .ProseMirror-gapcursor {
+        display: none;
+        pointer-events: none;
+        position: absolute;
+      }
+      .ProseMirror-gapcursor:after {
+        content: "";
+        display: block;
+        position: absolute;
+        top: -2px;
+        width: 100%;
+        border-top: 2px solid #3b82f6; /* Clear blue drop indicator */
+      }
+      .dark .ProseMirror-gapcursor:after {
+        border-top-color: #60a5fa; /* Lighter blue for dark mode */
+      }
+      
+      /* Breadcrumb Styles */
+      .breadcrumb-container {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 0;
+        margin-bottom: 0.5em;
+        font-size: 0.9em;
+        color: #9b9a97;
+        white-space: nowrap;
+        overflow-x: auto;
+      }
+      .dark .breadcrumb-container {
+         color: #8a8a8a;
+      }
+      .breadcrumb-item {
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: center;
+      }
+      .breadcrumb-item:hover {
+        background-color: #e3e3e1;
+      }
+      .dark .breadcrumb-item:hover {
+        background-color: #303030;
+      }
+      .breadcrumb-separator {
+        margin: 0 0.25rem;
+        user-select: none;
+      }
+
+      /* Page Link Styles */
+      .page-link {
+        display: inline-flex;
+        align-items: center;
+        background-color: transparent;
+        border-bottom: 1px solid rgba(55, 53, 47, 0.2);
+        padding: 0 2px;
+        cursor: pointer;
+        transition: background-color 0.2s, border-color 0.2s;
+        border-radius: 3px;
+        text-decoration: none !important;
+        color: inherit !important;
+      }
+      .page-link:hover {
+        background-color: #e3e3e1;
+        border-bottom-color: transparent;
+      }
+      .dark .page-link {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      .dark .page-link:hover {
+        background-color: #303030;
+        border-bottom-color: transparent;
+      }
+      .page-link-broken {
+        opacity: 0.7;
+        text-decoration: line-through !important;
+      }
+
+      /* Block Boundary and Positioning Context */
+      .ProseMirror > *, .ProseMirror [data-type="column"] > * {
+          position: relative;
+          min-height: 1.6em; /* Ensure even empty blocks have a footprint */
+      }
+      
+      /* Block Handle Styles */
+      .block-handle {
+        display: flex;
+        align-items: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateX(-100%);
+        padding-right: 0.5rem; /* space between handle and block */
+        z-index: 10;
+        user-select: none;
+        height: 1.6em; /* Match line-height for alignment */
+        opacity: 0; /* Initially hidden but rendered */
+        pointer-events: auto; /* Always interactive */
+        transition: opacity 0.15s ease-in-out;
+      }
+      
+      /* Show handle on its own hover state */
+      .block-handle:hover {
+        opacity: 1;
+      }
+
+      .handle-button {
+        padding: 2px;
+        border-radius: 4px;
+        color: #9b9a97;
+        cursor: grab;
+      }
+      .handle-button:hover {
+        background-color: #e3e3e1;
+        color: #37352f;
+      }
+      .dark .handle-button {
+        color: #8a8a8a;
+      }
+      .dark .handle-button:hover {
+        background-color: #303030;
+        color: #e2e2e2;
+      }
+      .block-menu {
+        position: absolute;
+        top: -100%;
+        left: -200px;
+        background: var(--notion-bg, #ffffff);
+        border: 1px solid var(--notion-border, #edece9);
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        padding: 4px;
+        z-index: 10;
+        margin-top: 4px;
+        width: 200px;
+      }
+      .dark .block-menu {
+         background: var(--notion-sidebar-dark, #202020);
+         border-color: var(--notion-border-dark, #3a3a3a);
+      }
+      .block-menu-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        text-align: left;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        color: var(--notion-text, #37352f);
+        background: transparent;
+        border: none;
+      }
+      .dark .block-menu-item {
+        color: var(--notion-text-dark, #e2e2e2);
+      }
+      .block-menu-item:hover {
+        background: var(--notion-hover, #e3e3e1);
+      }
+      .dark .block-menu-item:hover {
+        background: var(--notion-hover-dark, #303030);
+      }
+      .block-menu-item.is-active {
+        background: var(--notion-active, #d5d5d3);
+      }
+      .dark .block-menu-item.is-active {
+          background: var(--notion-active-dark, #3f3f3f);
+      }
+      .block-submenu {
+          background: var(--notion-bg, #ffffff);
+          border: 1px solid var(--notion-border, #edece9);
+          border-radius: 6px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          padding: 4px;
+          z-index: 11; /* Above main menu */
+          width: 220px;
+      }
+      .dark .block-submenu {
+          background: var(--notion-sidebar-dark, #202020);
+          border-color: var(--notion-border-dark, #3a3a3a);
+      }
+
+
+
+      
+
+/* Stili per l'handle del blocco (POSIZIONE CORRETTA) */
+.block-wrapper {
+  position: relative;
+}
+
+.block-handle {
+  opacity: 0;
+  position: absolute;
+  /* MODIFICA: 
+    Posiziona l'handle a 0.75rem (12px) dal bordo del 
+    contenitore del blocco, invece che fuori dallo schermo. 
+  */
+  left: 0rem; 
+  top: 0;
+  transition: opacity 150ms ease-in-out;
+  z-index: 10;
+}
+
+/* MODIFICA:
+  Mostra l'handle sia al :hover sul wrapper, 
+  SIA quando il menu è aperto (classe .is-active).
+  Questo risolve il problema del menu che scompare.
+*/
+.block-wrapper:hover .block-handle,
+.block-wrapper .block-handle.is-active {
+  opacity: 1;
+}
+
+
+
+/*
+ * Stili per i Placeholder di Tiptap (Editor)
+ * ---------------------------------------------
+ * Questo fa sì che il testo del placeholder (es. "Heading 2")
+ * erediti lo stile del blocco in cui si trova (es. h2).
+*/
+
+/*
+ * FIX PER I PLACEHOLDER DI TIPTAP
+ *
+ * Forza i placeholder (::before) ad ereditare lo stile
+ * del loro genitore (h1, h2, p) anche quando si usa
+ * la classe .prose di Tailwind.
+*/
+
+/*
+ * FIX PER I PLACEHOLDER DI TIPTAP (v3 - Più Specifico)
+ *
+ * Forziamo lo stile corretto sui placeholder all'interno di .prose
+*/
+
+/* File CSS globale (es. index.css) 
+  Questo risolve il problema di stile dei placeholder.
+*/
+
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (DA SOSTITUIRE) --- */
+
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (Versione con :has()) --- */
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (Test di Debug) --- */
+
+/* File CSS globale (es. index.css) */
+/* --- INIZIO BLOCCO PLACEHOLDER (Finale, Senza @apply, Senza float) --- */
+
+/* 1. Imposta il genitore per il posizionamento assoluto */
+.prose .react-renderer.is-empty {
+  position: relative;
+}
+
+/* 2. Stile di base per TUTTI i placeholder (con position: absolute) */
+.prose .react-renderer.is-empty::before,
+.prose .is-empty::before {
+  content: attr(data-placeholder);
+  
+  /* Risolve tutti i problemi di allineamento e sovrapposizione */
+  position: absolute;
+  left: 0;
+  top: 0;
+  
+  pointer-events: none;
+  font-style: normal;
+  
+  /* Colori hardcoded (bypassando @apply) */
+  color: #9b9a97; /* Colore Tiptap/Notion light mode */
+}
+
+/* Override per il Dark Mode */
+.dark .prose .react-renderer.is-empty::before,
+.dark .prose .is-empty::before {
+  color: #8a8a8a; /* Colore Tiptap/Notion dark mode */
+}
+
+/*
+  Questo CSS ora funzionerà perché .is-empty è applicato
+  direttamente a h1, h2, p, ecc. e può ereditarne gli stili di font.
+*/
+.prose .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+
+  /* Imposta solo il colore/opacità, eredita tutto il resto */
+  color: theme('colors.notion-text-gray.DEFAULT', #9B9A97);
+  opacity: 0.6;
+}
+
+/* Versione Dark Mode */
+.dark .prose .is-empty::before {
+  color: theme('colors.notion-text-gray-dark.DEFAULT', #9B9A97);
+  opacity: 0.6;
+}
+
+/*
+  NOTA PER I BLOCCHI DI CODICE:
+  Il tuo 'CustomCodeBlock' usa 'CodeBlockComponent'.
+  Dovrai applicare la stessa logica del Passaggio 1
+  anche a 'CodeBlockComponent.tsx' per far funzionare
+  correttamente il placeholder del blocco di codice.
+
+  Se lo fai, questa regola gestirà lo stile per <pre>.
+*/
+.prose pre.is-empty {
+  position: relative;
+}
+
+.prose pre.is-empty::before {
+  position: absolute;
+  float: none;
+  height: auto;
+  /* Potrebbe essere necessario regolare top/left 
+    in base al padding del tuo <pre> 
+  */
+  top: 1.25em; 
+  left: 1.5em;
+}
+
+
+
+
+
+/*
+ * Stili per i punti elenco annidati nell'editor
+ */
+
+/* Livello 1: Pallino pieno (default) */
+.prose ul > li {
+  list-style-type: disc;
+}
+
+/* Livello 2 (dopo 1 Tab): Pallino vuoto */
+.prose ul ul > li {
+  list-style-type: circle;
+}
+
+/* Livello 3 (dopo 2 Tab): Quadrato */
+.prose ul ul ul > li {
+  list-style-type: square;
+}
+
+/* Livello 4 (dopo 3 Tab): Trattino (puoi continuare) */
+.prose ul ul ul ul > li {
+  list-style-type: "- "; /* Aggiunge un trattino */
+}
+
+
+
+
+
+/* Assicurati che il .block-wrapper sia 'relative' per 
+  posizionare correttamente gli pseudo-elementi.
+  Il tuo file BlockWrapperComponent.tsx usa già 'relative', 
+  quindi sei a posto, ma aggiungerlo esplicitamente non fa male.
+*/
+.block-wrapper {
+  position: relative;
+}
+
+/* Disegna la linea BLU a SINISTRA */
+.block-wrapper.show-drop-line-left::before {
+  content: '';
+  position: absolute;
+  top: 4px; /* Un po' di padding dall'alto */
+  bottom: 4px; /* Un po' di padding dal basso */
+  left: -8px; /* Posiziona a sinistra del blocco */
+  width: 4px;
+  background-color: #60A5FA; /* Colore blu (lo stesso del Dropcursor) */
+  border-radius: 2px;
+  z-index: 10;
+}
+
+/* Disegna la linea BLU a DESTRA */
+.block-wrapper.show-drop-line-right::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: -8px; /* Posiziona a destra del blocco */
+  width: 4px;
+  background-color: #60A5FA;
+  border-radius: 2px;
+  z-index: 10;
+}
+
+
+/* Inserisci in: src/index.css (o il tuo file CSS globale) */
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.blinking-cursor {
+  /* Usa 'inline-block' per assicurare che non collassi */
+  display: inline-block;
+  width: 7px; /* Larghezza del cursore */
+  
+  /* Usa il font e la dimensione corretti */
+  font-weight: bold;
+  
+  /* L'animazione */
+  animation: blink 1s step-end infinite;
+  
+  /* Allineamento verticale (opzionale, ma aiuta) */
+  position: relative;
+  top: 1px;
+}
+
+
+
+
+@layer utilities {
+  /* Nasconde la scrollbar per Chrome, Safari e Edge */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Nasconde la scrollbar per IE, Edge e Firefox */
+  .scrollbar-none {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+
+/* Definiamo l'animazione di fade-in e leggero scorrimento verso l'alto */
+@keyframes fadeInStagger {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* * Applichiamo l'animazione a tutti i blocchi diretti dentro l'editor.
+ * Inizialmente sono invisibili (opacity: 0).
+ * 'animation-fill-mode: forwards' assicura che rimangano visibili (opacity: 1) 
+ * al termine dell'animazione.
+*/
+.ProseMirror > * {
+  opacity: 0; /* Inizia invisibile */
+  animation: fadeInStagger 400ms ease-out forwards;
+  /* Il ritardo (animation-delay) verrà applicato via JavaScript */
+}
+
+
+
+/* --- Stili Base Tabella Tiptap --- */
+
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  min-width: 1em;
+  border: 1px solid #cdd2d8; /* Ho reso questo bordo un po' più sottile */
+  padding: 3px 5px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.ProseMirror table th {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f1f3f5;
+}
+
+/* --- Stili per il Ridimensionamento Colonne --- */
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  cursor: col-resize;
+  background-color: #adf; /* Questo è il colore della maniglia (azzurro) */
+  pointer-events: none;
+}
+
+.ProseMirror .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(173, 216, 230, 0.4); /* Sfondo cella selezionata (azzurro chiaro) */
+  pointer-events: none;
+}
+
+/* --- Stili Dark Mode (Bonus) --- */
+
+.dark .ProseMirror table th {
+  background-color: #374151; /* Esempio: Grigio scuro per intestazione */
+  border-color: #4b5563; /* Bordi scuri */
+}
+
+.dark .ProseMirror table td {
+  border-color: #4b5563; /* Bordi scuri */
+}
+
+
+

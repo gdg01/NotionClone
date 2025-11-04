@@ -1,3 +1,5 @@
+
+
 /* Stili per l'handle del blocco (POSIZIONE CORRETTA) */
 .block-wrapper {
   position: relative;
@@ -329,3 +331,6 @@
 .dark .ProseMirror table td {
   border-color: #4b5563; /* Bordi scuri */
 }
+
+
+
