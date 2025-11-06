@@ -1,59 +1,82 @@
-// File: convex/schema.ts (SOSTITUZIONE COMPLETA)
+// File: convex/schema.ts 
+// (SOSTITUZIONE COMPLETA - Schema Corretto a 2 Tabelle)
+
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // --- Tabella Pagine (Metadati) ---
   pages: defineTable({
     title: v.string(),
     userId: v.string(),
     icon: v.optional(v.string()),
     parentId: v.optional(v.id("pages")),
     isArchived: v.boolean(),
-    coverImage: v.optional(v.string()), 
-    tags: v.optional(v.array(v.string())), 
-    isPinned: v.optional(v.boolean()), 
+    coverImage: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    isPinned: v.optional(v.boolean()),
     properties: v.optional(v.any()),
-    
-    // --- NUOVI CAMPI PER LA CONDIVISIONE ---
     isPublic: v.optional(v.boolean()),
-    shareId: v.optional(v.string()), // ID unico per il link pubblico
-    // --- FINE NUOVI CAMPI ---
+    shareId: v.optional(v.string()),
   })
     .index("byUser", ["userId"])
     .index("byUserAndParent", ["userId", "parentId"])
-    // --- NUOVO INDICE PER LA CONDIVISIONE ---
     .index("by_shareId", ["shareId"]),
 
+  // --- Tabella Contenuto Principale ---
   pageContent: defineTable({
     pageId: v.id("pages"),
     content: v.optional(v.string()),
   }).index("byPageId", ["pageId"]),
 
+  // --- Tabella Tag ---
   tags: defineTable({
-    name: v.string(), 
-    userId: v.string(), 
-    color: v.string(), 
-  })
-    .index("byUserAndName", ["userId", "name"]),
+    name: v.string(),
+    userId: v.string(),
+    color: v.string(),
+  }).index("byUserAndName", ["userId", "name"]),
 
+  // --- INIZIO OTTIMIZZAZIONE BANDA ---
+
+  // 1. Tabella "textBlocks" (LEGGERA)
+  // Contiene solo il testo per i confronti hash.
   textBlocks: defineTable({
     pageId: v.id("pages"),
     blockId: v.string(),
     text: v.string(),
-    embedding: v.array(v.float64()),
+    contentHash: v.optional(v.string()),
+    // --- 'embedding' RIMOSSO DA QUI ---
   })
     .index("by_pageId", ["pageId"])
+    .index("by_blockId", ["blockId"]), // Indice per join veloci
+
+  // 2. Tabella "blockEmbeddings" (PESANTE)
+  // Contiene solo i vettori per la ricerca AI.
+  blockEmbeddings: defineTable({
+    pageId: v.id("pages"), 
+    blockId: v.string(), // Chiave composita per collegare a textBlocks
+    embedding: v.array(v.float64()),
+    // --- 'textBlockId' rimosso per evitare ridondanza ---
+  })
+    .index("by_pageId_blockId", ["pageId", "blockId"]) // Per trovare/pulire i vettori
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
       dimensions: 768,
       filterFields: ["pageId"],
     }),
 
-  embeddingQueue: defineTable({
-    pageId: v.id("pages"),
-    contentJson: v.string(),
-  }).index("by_pageId", ["pageId"]), 
+  // --- FINE OTTIMIZZAZIONE BANDA ---
 
+  // --- Tabella Coda di Indicizzazione ---
+embeddingQueue: defineTable({
+  pageId: v.id("pages"),
+  contentJson: v.string(),
+  processing: v.optional(v.boolean()),  // <-- AGGIUNGI QUESTA RIGA
+  processingStartedAt: v.optional(v.number()), // <-- OPZIONALE: per timeout
+}).index("by_pageId", ["pageId"]),
+
+
+  // --- Tabella Backlinks ---
   backlinks: defineTable({
     sourcePageId: v.id("pages"),
     userId: v.string(),
@@ -64,14 +87,14 @@ export default defineSchema({
     .index("by_target", ["userId", "targetPageId"])
     .index("by_source", ["userId", "sourcePageId"]),
 
-    tasks: defineTable({
-      title: v.string(),
-      userId: v.string(),
-      pageId: v.id("pages"), 
-      status: v.string(),
-      description: v.optional(v.string()), 
-    })
-      .index("byUser", ["userId"])
-      .index("byUserAndPage", ["userId", "pageId"]),
-
+  // --- Tabella Tasks ---
+  tasks: defineTable({
+    title: v.string(),
+    userId: v.string(),
+    pageId: v.id("pages"),
+    status: v.string(),
+    description: v.optional(v.string()),
+  })
+    .index("byUser", ["userId"])
+    .index("byUserAndPage", ["userId", "pageId"]),
 });

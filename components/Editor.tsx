@@ -163,7 +163,7 @@ const TagInput: React.FC<TagInputProps> = ({ pageTags, onUpdatePageTags }) => {
           return (
             <span
               key={tagName}
-              className={`flex items-center text-sm px-2 py-0.5 rounded-full ${getTagClasses(colorName)}`}
+              className={`flex items-center text-sm px-2 py-0.5 rounded-md ${getTagClasses(colorName)}`} 
             >
               {tagName}
               <button
@@ -1095,6 +1095,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           heading: false,
           codeBlock: false,
           dropcursor: false,
+          markdown: {
+            html: true,     // Permette a Tiptap di convertire MD in HTML
+            paste: true,    // Abilita il parsing del MD quando si incolla
+            linkify: false, // Lascia la gestione dei link a PageLink
+          }
         }),
         ColumnDragHandler,
         Dropcursor.configure({ color: '#60A5FA', width: 2 }),
@@ -1234,7 +1239,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             view.dispatch(newTr);
             return true;
           }
-          return false;
         },
       },
     },
@@ -1390,7 +1394,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           </div>
         )}
 
-        <div className="relative">
+        <div className="relative group"> {/* <-- MODIFICA QUI */}
           <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}>
             {/* --- MODIFICA 7: Disabilita picker emoji --- */}
             <button
@@ -1457,38 +1461,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4 resize-none overflow-hidden"
             disabled={isReadOnly} // <-- Aggiunto disabled
           />
-          {/* --- FINE MODIFICA 9 --- */}
-        </div>
 
-
-        {/* --- MODIFICA 10: Nascondi Metadati e BubbleMenu --- */}
-        {!isReadOnly && (
           <>
-            <div className="border-y border-notion-border dark:border-notion-border-dark mb-6 py-4 space-y-3">
-              <div className="flex items-center text-sm">
-                <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark">Status</span>
-                {page.isPinned ? (
-                  <div className="flex items-center gap-2">
-                    <span className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full">📌 Pinned</span>
-                    <button
-                      onClick={() => onUpdatePage(page._id, { isPinned: false })}
-                      className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:text-red-500"
-                    >
-                      (unpin)
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => onUpdatePage(page._id, { isPinned: true })}
-                    className="text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:text-notion-text dark:hover:text-notion-text-dark"
-                  >
-                    Pin this page
-                  </button>
-                )}
-              </div>
+            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"> {/* <-- MODIFICA QUI */}
+
 
               <div className="flex items-start">
-                <span className="w-24 text-sm font-medium text-notion-text-gray dark:text-notion-text-gray-dark pt-1">Tags</span>
                 <div className="flex-1">
                   <TagInput
                     pageTags={page.tags || []}
@@ -1497,6 +1475,41 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                 </div>
               </div>
 
+              {page.properties && Object.keys(page.properties).length > 0 && (
+                <>
+                  {Object.entries(page.properties).map(([key, value]) => (
+                    <div key={key} className="flex items-center text-sm">
+                      <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark capitalize">{key}</span>
+                      <span className="text-notion-text dark:text-notion-text-dark">{String(value)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {editor && (
+              <BubbleMenu
+                editor={editor}
+                tippyOptions={{ duration: 100, placement: 'top-start' }}
+                className="flex items-center gap-1 bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark p-1"
+              >
+                <TextSelectionMenu
+                  editor={editor}
+                  onOpenAiPanel={onOpenAiPanel}
+                  onCreatePageFromSelection={handleCreatePageFromSelection}
+                />
+              </BubbleMenu>
+            )}
+          </>
+          {/* --- FINE MODIFICA 9 --- */}
+        </div>
+
+
+        {!isReadOnly && (
+          <>
+            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"> {/* <-- MODIFICA QUI */}
+  
+             
               {page.properties && Object.keys(page.properties).length > 0 && (
                 <>
                   {Object.entries(page.properties).map(([key, value]) => (

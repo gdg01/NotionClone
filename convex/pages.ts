@@ -86,17 +86,42 @@ export const create = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) { throw new Error("Not authenticated"); }
     const userId = identity.subject;
-    const pageId = await ctx.db.insert("pages", {
-      title: args.title, userId, icon: "", parentId: args.parentPage, isArchived: false,
 
-      coverImage: undefined, // o un URL di default se lo hai
-      tags: [], // Inizia con un array vuoto
-      isPinned: false, // Non pinnata di default
-      properties: {}, // Oggetto vuoto di default
+    // --- INIZIO NUOVA LOGICA EREDITARIETÀ TAG ---
+    let tagsToInherit: string[] = [];
+    
+    if (args.parentPage) {
+      // C'è un genitore, proviamo a caricarlo
+      const parentPage = await ctx.db.get(args.parentPage);
+      
+      // Controlliamo che esista, che sia dello stesso utente e che abbia dei tag
+      if (parentPage && 
+          parentPage.userId === userId && 
+          parentPage.tags && 
+          parentPage.tags.length > 0) 
+      {
+        // Eredita il *primo* tag
+        tagsToInherit = [parentPage.tags[0]]; 
+      }
+    }
+    // --- FINE NUOVA LOGICA EREDITARIETÀ TAG ---
+
+    const pageId = await ctx.db.insert("pages", {
+      title: args.title,
+      userId,
+      icon: "",
+      parentId: args.parentPage,
+      isArchived: false,
+      coverImage: undefined,
+      tags: tagsToInherit, // <-- USA LA NUOVA VARIABILE
+      isPinned: false,
+      properties: {},
     });
+
     await ctx.db.insert("pageContent", {
       pageId: pageId, content: "{}",
     });
+    
     return pageId;
   },
 });

@@ -1,3 +1,6 @@
+// File: convex/search.ts
+// (SOSTITUZIONE COMPLETA - Adattata allo schema a 2 tabelle)
+
 import { v } from "convex/values";
 import { 
   action, 
@@ -7,47 +10,57 @@ import {
   internalMutation 
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { Doc, Id } from "./_generated/dataModel";
 
+// --- Variabili d'ambiente ---
 const serperApiKey = process.env.SERPER_API_KEY;
 const hfApiKey = process.env.HUGGINGFACE_API_KEY;
 const googleApiKey = process.env.GEMINI_API_KEY; 
 
-// --- Funzioni helper (embed, wait, searchWeb) (INVARIATE) ---
-// ... (tutta la logica di 'embed', 'wait', 'searchWeb' rimane identica) ...
+// --- Funzioni helper ---
 type EmbedInputType = "query" | "document";
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const embed = async (text: string, inputType: EmbedInputType): Promise<number[]> => {
-  if (!text?.trim()) return [];
-  if (!googleApiKey) {
-    console.error("GOOGLE_API_KEY non configurata!");
-    throw new Error("GOOGLE_API_KEY non configurata");
-  }
-  const taskType = inputType === "query" ? "RETRIEVAL_QUERY" : "RETRIEVAL_DOCUMENT";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${googleApiKey}`;
-  const body = JSON.stringify({
-    content: { parts: [{ text: text }] },
-    taskType: taskType
-  });
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(`Errore API Google (${response.status}): ${errorData.error?.message || response.statusText}`);
-      }
-      const result = await response.json();
-      if (!result.embedding?.values) { throw new Error("Risposta API non valida, embedding mancante."); }
-      console.log(`[Google REST] Embedding generato: ${result.embedding.values.length} dim`);
-      return result.embedding.values;
-    } catch (e: any) {
-      console.error(`Tentativo ${attempt} fallito:`, e?.message);
-      if (attempt === 3) throw e;
-      await wait(1500); 
+// 'embed' ora è una internalAction
+export const embed = internalAction({
+  args: {
+    text: v.string(),
+    inputType: v.union(v.literal("query"), v.literal("document")),
+  },
+  handler: async (ctx, args) => {
+    const { text, inputType } = args;
+    if (!text?.trim()) return [];
+    if (!googleApiKey) {
+      console.error("GOOGLE_API_KEY non configurata!");
+      throw new Error("GOOGLE_API_KEY non configurata");
     }
-  }
-  throw new Error("Embedding fallito dopo 3 tentativi");
-};
+    const taskType = inputType === "query" ? "RETRIEVAL_QUERY" : "RETRIEVAL_DOCUMENT";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${googleApiKey}`;
+    const body = JSON.stringify({
+      content: { parts: [{ text: text }] },
+      taskType: taskType
+    });
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: response.statusText }));
+          throw new Error(`Errore API Google (${response.status}): ${errorData.error?.message || response.statusText}`);
+        }
+        const result = await response.json();
+        if (!result.embedding?.values) { throw new Error("Risposta API non valida, embedding mancante."); }
+        console.log(`[Google REST] Embedding generato: ${result.embedding.values.length} dim`);
+        return result.embedding.values;
+      } catch (e: any) {
+        console.error(`Tentativo ${attempt} fallito:`, e?.message);
+        if (attempt === 3) throw e;
+        await wait(1500); 
+      }
+    }
+    throw new Error("Embedding fallito dopo 3 tentativi");
+  },
+});
+
 const searchWeb = async (query: string) => {
   if (!serperApiKey) { console.warn("SERPER_API_KEY non configurata"); return []; }
   try {
@@ -63,14 +76,7 @@ const searchWeb = async (query: string) => {
     })) || [];
   } catch (err) { console.error("Errore ricerca Serper:", err); return []; }
 };
-// --- FINE Funzioni helper ---
 
-
-// --- Funzione di Parsing (NUOVA) ---
-/**
- * Estrae i contenuti dai delimitatori specifici.
- * Es. [TAG]: Contenuto [ALTRO_TAG]: ...
- */
 const extractSection = (text: string, tag: string, nextTag?: string): string => {
   try {
     let content = text.split(`[${tag}]:`)[1];
@@ -87,333 +93,464 @@ const extractSection = (text: string, tag: string, nextTag?: string): string => 
   }
 };
 
-
-// --- 3. AZIONE PRINCIPALE DI RICERCA (MODIFICATA) ---
-
+// --- AZIONE PRINCIPALE DI RICERCA ---
 export const performContextualSearch = action({
   args: { query: v.string() },
   handler: async (ctx, args) => {
-    console.log(`[Search] Ricerca per: "${args.query}"`);
+    
+    // --- INIZIO MODIFICA ---
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      console.warn("[Search] Utente non autenticato.");
+      // Restituisci un risultato coerente per l'utente non loggato
+      return {
+        combinedSummary: "Devi essere autenticato per usare la ricerca interna.",
+        internalSummary: "Devi essere autenticato per usare la ricerca interna.",
+        externalSummary: "", // La ricerca esterna potrebbe ancora funzionare se vuoi
+        internal: [],
+        external: [] // Puoi scegliere di eseguire comunque searchWeb(args.query)
+      };
+    }
+    const userId = identity.subject;
+    console.log(`[Search] Ricerca per: "${args.query}" (Utente: ${userId})`);
+    // --- FINE MODIFICA ---
 
-    // 1. & 2. Ricerche (come prima)
-    const queryEmbedding = await embed(args.query, "query");
+    const queryEmbedding = await ctx.runAction(internal.search.embed, { 
+      text: args.query, 
+      inputType: "document" 
+    });
+    
     const [internalResults, externalResults] = await Promise.all([
-        ctx.runAction(internal.search.searchInternal, { queryEmbedding: queryEmbedding }),
+        ctx.runAction(internal.search.searchInternal, { 
+          queryEmbedding: queryEmbedding,
+          userId: userId // <-- PASSA LO userId
+        }),
         searchWeb(args.query)
     ]);
     console.log(`[Search] Ricevuti ${internalResults.length} risultati interni e ${externalResults.length} esterni.`);
 
-    // 3. Preparazione Contesti (come prima)
     const internalContext = internalResults
       .map(res => `Titolo Pagina: ${res.pageTitle}\nContenuto: ${res.textPreview}`)
       .join("\n\n---\n\n");
-
     const externalContext = externalResults
       .map(res => `Sito: ${res.source_title}\nContenuto: ${res.snippet}`)
       .join("\n\n---\n\n");
-
-    // --- MODIFICA: Creazione del "One-Shot Prompt" ---
-
+      
     const oneShotPrompt = `
     Sei un assistente di ricerca. La domanda dell'utente è: "${args.query}"
-
     ${internalContext.length > 0 ? `
     --- INIZIO: Le mie note ---
     ${internalContext}
     --- FINE: Le mie note ---` : ''}
-
     ${externalContext.length > 0 ? `
     --- INIZIO: Dal Web ---
     ${externalContext}
     --- FINE: Dal Web ---` : ''}
-
     ISTRUZIONI IMPORTANTI:
     Devi generare tre riassunti separati basandoti ESCLUSIVAMENTE sulle fonti fornite.
     Formatta la tua risposta ESATTAMENTE come segue, usando i delimitatori speciali. Non aggiungere nient'altro prima o dopo i tag.
-
     [INTERNAL SUMMARY]:
 (Scrivi qui la tua sintesi basata *solo* su "Le mie note". Se non ci sono note pertinenti, scrivi "Nessuna informazione trovata nelle tue note.")
-
     [EXTERNAL SUMMARY]:
 (Scrivi qui la tua sintesi basata *solo* su "Dal Web". Se non ci sono fonti web pertinenti, scrivi "Nessuna informazione trovata sul web.")
-
     [COMBINED SUMMARY]:
 (Scrivi qui la tua sintesi combinata che unisce le informazioni da *entrambe* le fonti. Se non hai trovato nulla, scrivi "Nessun risultato trovato.")
     `;
-    
-    console.log(`[Search] Invio One-Shot Prompt a Groq...`);
-
-    // --- MODIFICA: Esegui 1 SOLA chiamata AI ---
     const aiResponse = await ctx.runAction(api.ai.askGroq, {
       history: [{ role: "user", content: oneShotPrompt }]
     });
-
-    console.log("[Search] Ricevuta risposta AI, inizio parsing...");
-
-    // --- MODIFICA: Parsa la risposta singola ---
     const internalSummary = extractSection(aiResponse, "INTERNAL SUMMARY", "EXTERNAL SUMMARY");
     const externalSummary = extractSection(aiResponse, "EXTERNAL SUMMARY", "COMBINED SUMMARY");
     const combinedSummary = extractSection(aiResponse, "COMBINED SUMMARY");
-
-    // Fallback nel caso l'AI non segua il formato
     if (!internalSummary && !externalSummary && !combinedSummary && aiResponse.length > 10) {
-        console.warn("[Search] L'AI non ha seguito il formato. Uso la risposta grezza come summary combinato.");
         return {
-            combinedSummary: aiResponse, // Metti tutto nel combinato
-            internalSummary: "",
-            externalSummary: "",
-            internal: internalResults,
-            external: externalResults
+            combinedSummary: aiResponse, internalSummary: "", externalSummary: "",
+            internal: internalResults, external: externalResults
         };
     }
-    
-    console.log(`[Search] Parsing completato.`);
-
-    // --- MODIFICA: Restituisci i 3 riassunti parsati ---
     return {
-      combinedSummary,
-      internalSummary,
-      externalSummary,
-      internal: internalResults,
-      external: externalResults
+      combinedSummary, internalSummary, externalSummary,
+      internal: internalResults, external: externalResults
     };
   },
 });
 
+// ============================================
+// FUNZIONE searchInternal - VERSIONE COMPLETA
+// ============================================
+// Sostituisci completamente la funzione searchInternal nel tuo search.ts
 
-// --- 4. QUERY DI RICERCA INTERNA (VERSIONE CORRETTA) ---
-// ... (tutta la logica di 'searchInternal' rimane identica) ...
 export const searchInternal = action({
-  args: { queryEmbedding: v.array(v.float64()) },
+  args: { queryEmbedding: v.array(v.float64()), userId: v.string()},
   handler: async (ctx, args) => {
-    if (args.queryEmbedding.length === 0) { console.warn("[Search Internal] Embedding vuoto, skip ricerca"); return []; }
-    console.log("[Search Internal] Avviata ricerca vettoriale...");
-    const searchResults = await ctx.vectorSearch("textBlocks", "by_embedding", { vector: args.queryEmbedding, limit: 8 });
-    console.log(`[Search Internal] Score dei risultati:`, searchResults.map(r => ({id: r._id, score: r._score})));
-    console.log(`[Search Internal] vectorSearch ha restituito ${searchResults.length} ID.`);
-    if (searchResults.length === 0) return [];
+    console.log(`[Search Internal] Inizio ricerca per userId: ${args.userId}`);
     
+    if (args.queryEmbedding.length === 0) { 
+      console.warn("[Search Internal] Embedding vuoto, skip ricerca"); 
+      return []; 
+    }
+    
+    // 1. Cerca nella tabella PESANTE 'blockEmbeddings'
+    // NOTA: vectorSearch restituisce solo _id e _score, non i campi custom
+    const searchResults = await ctx.vectorSearch("blockEmbeddings", "by_embedding", { 
+        vector: args.queryEmbedding, 
+        limit: 10
+    });
+    
+    console.log(`[Search Internal] vectorSearch ha restituito ${searchResults.length} risultati.`);
+    
+    if (searchResults.length === 0) {
+      console.warn("[Search Internal] Nessun risultato dalla vectorSearch");
+      return [];
+    }
+    
+    // 2. Recupera i documenti COMPLETI dalla tabella blockEmbeddings usando gli _id
+    const embeddingIds = searchResults.map(r => r._id);
+    const fullEmbeddings = await ctx.runQuery(internal.search.getEmbeddingsByIds, { 
+      ids: embeddingIds 
+    });
+    
+    console.log(`[Search Internal] Recuperati ${fullEmbeddings.length} embedding completi`);
+    
+    // 3. Crea una mappa score -> embedding _id
     const scoreMap = new Map(searchResults.map(res => [res._id, res._score]));
-    const blockIds = searchResults.map(res => res._id);
-    const blocks = await ctx.runQuery(internal.search.getBlocksByIds, { ids: blockIds });
-    console.log(`[Search Internal] Recuperati ${blocks.length} documenti completi da textBlocks.`);
-    const validPageIds = [ ...new Set( blocks.map((res) => res.pageId).filter((id): id is Id<"pages"> => id !== null && id !== undefined) )];
-    console.log(`[Search Internal] Page ID validi estratti: ${validPageIds.length}`, validPageIds);
-    if (validPageIds.length === 0) { console.log("[Search Internal] Nessun Page ID valido trovato. Uscita."); return []; }
-    const pages = await ctx.runQuery(internal.search.getPagesByIds, { ids: validPageIds });
-    const pageMap = new Map( pages.map((p) => [p._id, { title: p.title, icon: p.icon }]) );
-    console.log(`[Search Internal] Mappa delle pagine creata (${pageMap.size} pagine).`);
-    const finalResults = blocks
-      .filter((block) => block.pageId && pageMap.has(block.pageId))
-      .map((block) => ({
-        _id: block.pageId,
-        blockId: block.blockId,
-        score: scoreMap.get(block._id) || 0,
-        textPreview: block.text,
-        pageTitle: pageMap.get(block.pageId!)?.title || "Pagina non trovata",
-        pageIcon: pageMap.get(block.pageId!)?.icon || "📄",
-      }))
-      .filter((res) => res.score > 0.6) 
+    
+    // 4. Estrai pageIds e blockIds dai documenti COMPLETI
+    const pageIds = [...new Set(
+      fullEmbeddings
+        .map(emb => emb.pageId)
+        .filter((id): id is Id<"pages"> => id !== undefined && id !== null)
+    )];
+
+    const blockIds = fullEmbeddings
+      .map(emb => emb.blockId)
+      .filter((id): id is string => id !== undefined && id !== null && id !== "");
+
+    console.log(`[Search Internal] Recupero dati per ${pageIds.length} pagine e ${blockIds.length} blocchi`);
+
+    // 5. Recupera i metadati (Pagine e Testo) in parallelo
+    const [pages, textBlocks] = await Promise.all([
+      ctx.runQuery(internal.search.getPagesByIds, { ids: pageIds }),
+      ctx.runQuery(internal.search.getTextBlocksByBlockIds, { blockIds: blockIds })
+    ]);
+    
+    console.log(`[Search Internal] Ricevute ${pages.length} pagine e ${textBlocks.length} textBlocks`);
+    
+    // 6. Crea mappe per lookup veloce
+    const pageMap = new Map(pages.map((p) => [p._id, { title: p.title, icon: p.icon, userId: p.userId }]));
+    const textMap = new Map(textBlocks.map((b) => [b.blockId, b.text]));
+    const embeddingMap = new Map(fullEmbeddings.map(e => [e._id, e]));
+
+    // 7. Unisci i risultati e filtra per userId
+    const finalResults = searchResults
+      .map((result) => {
+        const embDoc = embeddingMap.get(result._id);
+        if (!embDoc) {
+          console.warn(`[Search Internal] Embedding non trovato per _id: ${result._id}`);
+          return null;
+        }
+        
+        const pageInfo = pageMap.get(embDoc.pageId);
+        const textPreview = textMap.get(embDoc.blockId);
+        
+        if (!pageInfo || !textPreview) {
+          console.warn(`[Search Internal] Dati mancanti per blockId: ${embDoc.blockId}`);
+          return null;
+        }
+
+        // IMPORTANTE: Filtra per userId
+        if (pageInfo.userId !== args.userId) {
+          console.log(`[Search Internal] Pagina ${embDoc.pageId} appartiene a un altro utente, skip`);
+          return null;
+        }
+
+        return {
+          _id: embDoc.pageId,
+          blockId: embDoc.blockId,
+          score: scoreMap.get(result._id) || 0,
+          textPreview: textPreview,
+          pageTitle: pageInfo.title || "Pagina non trovata",
+          pageIcon: pageInfo.icon || "📄",
+        };
+      })
+      .filter((res): res is NonNullable<typeof res> => res !== null)
+      .filter((res) => {
+        const passThreshold = res.score > 0.6;
+        if (!passThreshold) {
+          console.log(`[Search Internal] Scartato risultato con score ${res.score} (soglia: 0.25)`);
+        }
+        return passThreshold;
+      })
       .sort((a, b) => b.score - a.score);
+
     console.log(`[Search Internal] Risultati finali elaborati: ${finalResults.length}`);
-    if (finalResults.length > 0) { console.log(`[Search Internal] Score range: ${finalResults[0].score.toFixed(3)} - ${finalResults[finalResults.length-1].score.toFixed(3)}`); }
+    
+    if (finalResults.length > 0) {
+      console.log(`[Search Internal] Top risultato: score=${finalResults[0].score}, title="${finalResults[0].pageTitle}"`);
+    }
+    
     return finalResults;
   },
 });
-// --- 5. LOGICA DI INDICIZZAZIONE ---
 
-const extractTextFromNode = (node: any): { id: string; text: string }[] => {
-  let blocks: { id: string; text: string }[] = [];
-  const nodeId = node.attrs?.id || null;
-  const searchableTypes = ["paragraph", "heading", "callout", "blockquote"];
-  
-  if (searchableTypes.includes(node.type) && nodeId) {
-    const text = node.content?.map((n: any) => n.text).join("") || "";
-    if (text.trim().length > 10) { 
-      blocks.push({ id: nodeId, text: text }); 
-    }
-  }
-  
-  if (node.content && node.type !== "codeBlock") {
-    node.content.forEach((childNode: any) => {
-      blocks = blocks.concat(extractTextFromNode(childNode));
-    });
-  }
-  
-  return blocks;
-};
+// ============================================
+// HELPER FUNCTIONS NECESSARIE
+// ============================================
+// Aggiungi anche queste se non le hai già
 
-export const getBlocksForPage = internalQuery({
-  args: { pageId: v.id("pages") },
-  handler: async (ctx, args) => { 
-    return await ctx.db
-      .query("textBlocks")
-      .filter(q => q.eq(q.field("pageId"), args.pageId))
-      .collect(); 
+// Recupera embeddings completi per ID
+export const getEmbeddingsByIds = internalQuery({
+  args: { ids: v.array(v.id("blockEmbeddings")) },
+  handler: async (ctx, args) => {
+    if (args.ids.length === 0) return [];
+    
+    const embeddings = await Promise.all(
+      args.ids.map(id => ctx.db.get(id))
+    );
+    
+    return embeddings.filter((e): e is Doc<"blockEmbeddings"> => e !== null);
   },
 });
 
-export const insertBlock = internalMutation({
+// Recupera textBlocks per blockIds (gestisce duplicati con .first())
+export const getTextBlocksByBlockIds = internalQuery({
+  args: { blockIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    if (args.blockIds.length === 0) {
+      return [];
+    }
+
+    // Usa .first() invece di .unique() per gestire eventuali duplicati
+    const blocks = await Promise.all(
+      args.blockIds.map(blockId => 
+        ctx.db.query("textBlocks")
+          .withIndex("by_blockId", q => q.eq("blockId", blockId))
+          .first()
+      )
+    );
+    
+    const foundBlocks = blocks.filter((b): b is Doc<"textBlocks"> => b !== null);
+    
+    console.log(`[getTextBlocksByBlockIds] Richiesti ${args.blockIds.length} ID, trovati ${foundBlocks.length} blocchi.`);
+    
+    return foundBlocks;
+  },
+});
+
+// Recupera pagine per IDs (dovrebbe già esistere)
+export const getPagesByIds = internalQuery({
+  args: { ids: v.array(v.id("pages")) },
+  handler: async (ctx, args) => {
+    if (args.ids.length === 0) return [];
+    
+    const pages = await Promise.all(
+      args.ids.map(id => ctx.db.get(id))
+    );
+    
+    return pages.filter((p): p is Doc<"pages"> => p !== null);
+  },
+});
+
+// --- LOGICA DI INDICIZZAZIONE (Query e Mutazioni per lo schema a 2 tabelle) ---
+
+// Legge dalla tabella LEGGERA 'textBlocks'
+export const getBlocksForPage = internalQuery({
+  args: { pageId: v.id("pages") },
+  handler: async (ctx, args) => { 
+    const blocks = await ctx.db
+      .query("textBlocks")
+      .withIndex("by_pageId", q => q.eq("pageId", args.pageId))
+      .collect();
+      
+    // Proiezione: restituisci solo i dati minimi necessari per il confronto
+    return blocks.map(block => ({
+      _id: block._id,
+      blockId: block.blockId,
+      contentHash: block.contentHash,
+    }));
+  },
+});
+
+// Legge dalla tabella PESANTE 'blockEmbeddings'
+export const getEmbeddingsForPage = internalQuery({
+  args: { pageId: v.id("pages") },
+  handler: async (ctx, args) => {
+    const embeddings = await ctx.db
+      .query("blockEmbeddings")
+      .withIndex("by_pageId_blockId", q => q.eq("pageId", args.pageId))
+      .collect();
+    
+    // Restituisce solo i campi necessari per la pulizia
+    return embeddings.map(emb => ({
+      _id: emb._id,
+      blockId: emb.blockId,
+    }));
+  }
+});
+
+// --- Nuove mutazioni per le 2 tabelle ---
+export const insertTextBlock = internalMutation({
   args: { 
     pageId: v.id("pages"), 
     blockId: v.string(), 
     text: v.string(), 
-    embedding: v.array(v.float64())
+    contentHash: v.string(), 
   },
   handler: async (ctx, args) => { 
-    await ctx.db.insert("textBlocks", args); 
+    await ctx.db.insert("textBlocks", {
+      pageId: args.pageId,
+      blockId: args.blockId,
+      text: args.text,
+      contentHash: args.contentHash, 
+    }); 
   },
 });
 
-export const deleteBlock = internalMutation({
-  args: { blockId: v.id("textBlocks") },
-  handler: async (ctx, args) => { 
-    await ctx.db.delete(args.blockId); 
+export const insertBlockEmbedding = internalMutation({
+  args: {
+    pageId: v.id("pages"),
+    blockId: v.string(),
+    embedding: v.array(v.float64()),
   },
-});
-
-
-// --- 6. WORKER DELLA CODA (OTTIMIZZATO) ---
-
-// Tipo helper per il blocco estratto
-type TextBlock = { id: string; text: string };
-
-// Helper function per trovare un doc (dal DB) in una lista
-const findDoc = (list: Doc<"textBlocks">[], id: string) => list.find(b => b.blockId === id);
-// Helper function per trovare un blocco (dal JSON) in una lista
-const findBlock = (list: TextBlock[], id: string) => list.find(b => b.id === id);
-
-
-export const processEmbeddingQueue = internalAction({
-  handler: async (ctx) => {
-    // 1. Prendi il prossimo lavoro (invariato)
-    const job = await ctx.runQuery(internal.search.getNextQueueJob);
-    if (!job) {
-      console.log("[Queue] Coda vuota, nessun lavoro da processare");
-      return;
-    }
-
-    const { pageId, contentJson } = job;
-    console.log(`[Queue] Processando (Sostenibile) pagina: ${pageId}`);
-    
-    // 2. ESEGUI IL LAVORO (Indicizzazione Ottimizzata)
-    try {
-      // 2a. Calcola stato VECCHIO (dal DB) e NUOVO (dal JSON)
-      const oldBlocks = await ctx.runQuery(internal.search.getBlocksForPage, { pageId });
-      const content = JSON.parse(contentJson);
-      const newBlocks = extractTextFromNode(content);
-      
-      console.log(`[Queue] Confronto: ${oldBlocks.length} blocchi vecchi vs ${newBlocks.length} blocchi nuovi`);
-
-      // 2b. Calcola il DELTA
-
-      // Blocchi DA RIMUOVERE: (Sono nel DB ma non più nel JSON)
-      const blocksToRemove = oldBlocks.filter(oldBlock => 
-        !findBlock(newBlocks, oldBlock.blockId)
-      );
-
-      // Blocchi DA AGGIUNGERE: (Sono nel JSON ma non nel DB)
-      const blocksToAdd = newBlocks.filter(newBlock =>
-        !findDoc(oldBlocks, newBlock.id)
-      );
-
-      // Blocchi DA AGGIORNARE: (Sono in entrambi, ma il testo è cambiato)
-      const blocksToUpdate = newBlocks.filter(newBlock => {
-        const oldMatch = findDoc(oldBlocks, newBlock.id);
-        // Esiste E il testo è diverso?
-        return oldMatch && oldMatch.text !== newBlock.text;
-      });
-
-      // 2c. ESEGUI SOLO LE OPERAZIONI NECESSARIE
-
-      // Rimuovi i blocchi eliminati
-      for (const block of blocksToRemove) {
-        await ctx.runMutation(internal.search.deleteBlock, { blockId: block._id });
-      }
-
-      // Aggiungi i blocchi nuovi (chiamata API costosa)
-      for (const block of blocksToAdd) {
-        const embedding = await embed(block.text, "document");
-        if (embedding.length > 0) {
-          await ctx.runMutation(internal.search.insertBlock, {
-            pageId: pageId, 
-            blockId: block.id, 
-            text: block.text, 
-            embedding: embedding,
-          });
-        }
-      }
-
-      // Aggiorna i blocchi modificati (chiamata API costosa)
-      for (const block of blocksToUpdate) {
-        // Trova il vecchio documento da cancellare
-        const oldDoc = oldBlocks.find(b => b.blockId === block.id);
-        if (oldDoc) {
-          await ctx.runMutation(internal.search.deleteBlock, { blockId: oldDoc._id });
-        }
-        
-        // Inserisci il nuovo
-        const embedding = await embed(block.text, "document");
-        if (embedding.length > 0) {
-          await ctx.runMutation(internal.search.insertBlock, {
-            pageId: pageId, 
-            blockId: block.id, 
-            text: block.text, 
-            embedding: embedding,
-          });
-        }
-      }
-
-      const unchangedCount = oldBlocks.length - blocksToRemove.length - blocksToUpdate.length;
-      console.log(`[Queue] ✅ Indicizzata pagina ${pageId} (Aggiunti: ${blocksToAdd.length}, Rimossi: ${blocksToRemove.length}, Aggiornati: ${blocksToUpdate.length}, Invariati: ${unchangedCount})`);
-
-    } catch (e: any) {
-      console.error(`[Queue] ❌ Fallita indicizzazione pagina ${pageId}:`, e?.message || e);
-      // Non rilanciamo l'errore, così la coda può continuare
-    }
-    
-    // 3. Rimuovi il lavoro completato dalla coda (invariato)
-    await ctx.runMutation(internal.search.deleteQueueJob, { jobId: job._id });
-
-    // 4. Controlla se ci sono altri lavori (invariato)
-    const nextJob = await ctx.runQuery(internal.search.getNextQueueJob);
-    if (nextJob) {
-      console.log("[Queue] Altri lavori in coda, scheduling prossimo...");
-      await ctx.scheduler.runAfter(5000, internal.search.processEmbeddingQueue, {});
-    } else {
-      console.log("[Queue] ✅ Coda completata!");
-    }
+  handler: async (ctx, args) => {
+    await ctx.db.insert("blockEmbeddings", {
+      pageId: args.pageId,
+      blockId: args.blockId,
+      embedding: args.embedding,
+    });
   }
 });
 
-// --- 7. GESTIONE CODA ---
+export const updateTextBlock = internalMutation({
+  args: {
+    textBlockId: v.id("textBlocks"),
+    text: v.string(),
+    contentHash: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.textBlockId, {
+      text: args.text,
+      contentHash: args.contentHash,
+    });
+  }
+});
 
+export const deleteTextBlock = internalMutation({
+  args: { textBlockId: v.id("textBlocks") },
+  handler: async (ctx, args) => { 
+    await ctx.db.delete(args.textBlockId); 
+  },
+});
+
+export const deleteBlockEmbedding = internalMutation({
+  args: { embeddingId: v.id("blockEmbeddings") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.embeddingId);
+  }
+});
+
+// --- GESTIONE CODA (MODIFICATA) ---
 export const enqueueEmbeddingJob = internalMutation({
   args: {
     pageId: v.id("pages"),
     contentJson: v.string(),
   },
   handler: async (ctx, args) => {
-    // Evita duplicati: rimuovi vecchi lavori per questa pagina
+    // IMPORTANTE: Cancella i job esistenti E segna la pagina come "in lavorazione"
     const existing = await ctx.db
       .query("embeddingQueue")
       .filter(q => q.eq(q.field("pageId"), args.pageId))
       .collect();
       
+    // Cancella job duplicati
     for (const job of existing) {
       await ctx.db.delete(job._id);
     }
     
-    // Aggiungi il nuovo lavoro
+    // Inserisci il nuovo job
     await ctx.db.insert("embeddingQueue", {
       pageId: args.pageId,
       contentJson: args.contentJson,
     });
 
-    console.log(`[Queue] Aggiunto lavoro per pagina: ${args.pageId}`);
+    console.log(`[Queue] Accodato lavoro per pagina: ${args.pageId} (rimossi ${existing.length} job duplicati)`);
+    
+    // Schedula il worker SOLO se non è già in esecuzione
+    // NOTA: Questo previene scheduling multipli
+    await ctx.scheduler.runAfter(0, internal.searchNode.processEmbeddingQueue, {});
+  }
+});
 
-    // Avvia il processore
-    await ctx.scheduler.runAfter(0, internal.search.processEmbeddingQueue, {});
+// ============================================
+// 2. CORREZIONE IN search.ts - Nuove mutazioni UPSERT
+// ============================================
+// Aggiungi queste nuove funzioni per gestire l'upsert:
+
+export const upsertTextBlock = internalMutation({
+  args: { 
+    pageId: v.id("pages"), 
+    blockId: v.string(), 
+    text: v.string(), 
+    contentHash: v.string(), 
+  },
+  handler: async (ctx, args) => {
+    // Cerca se esiste già
+    const existing = await ctx.db
+      .query("textBlocks")
+      .withIndex("by_blockId", q => q.eq("blockId", args.blockId))
+      .first();
+    
+    if (existing) {
+      // Aggiorna
+      await ctx.db.patch(existing._id, {
+        text: args.text,
+        contentHash: args.contentHash,
+        pageId: args.pageId, // Aggiorna anche pageId per sicurezza
+      });
+      console.log(`[Upsert] Aggiornato textBlock: ${args.blockId}`);
+    } else {
+      // Inserisci nuovo
+      await ctx.db.insert("textBlocks", {
+        pageId: args.pageId,
+        blockId: args.blockId,
+        text: args.text,
+        contentHash: args.contentHash,
+      });
+      console.log(`[Upsert] Inserito nuovo textBlock: ${args.blockId}`);
+    }
+  },
+});
+
+export const upsertBlockEmbedding = internalMutation({
+  args: {
+    pageId: v.id("pages"),
+    blockId: v.string(),
+    embedding: v.array(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    // Cerca se esiste già (usando indice composito)
+    const existing = await ctx.db
+      .query("blockEmbeddings")
+      .withIndex("by_pageId_blockId", q => 
+        q.eq("pageId", args.pageId).eq("blockId", args.blockId)
+      )
+      .first();
+    
+    if (existing) {
+      // Aggiorna
+      await ctx.db.patch(existing._id, {
+        embedding: args.embedding,
+      });
+      console.log(`[Upsert] Aggiornato embedding: ${args.blockId}`);
+    } else {
+      // Inserisci nuovo
+      await ctx.db.insert("blockEmbeddings", {
+        pageId: args.pageId,
+        blockId: args.blockId,
+        embedding: args.embedding,
+      });
+      console.log(`[Upsert] Inserito nuovo embedding: ${args.blockId}`);
+    }
   }
 });
 
@@ -421,8 +558,57 @@ export const getNextQueueJob = internalQuery({
   handler: async (ctx) => {
     return await ctx.db
       .query("embeddingQueue")
-      .order("asc") // FIFO: processa nell'ordine di arrivo
+      .filter(q => 
+        q.or(
+          q.eq(q.field("processing"), false),
+          q.eq(q.field("processing"), undefined)
+        )
+      )
+      .order("asc")
       .first();
+  }
+});
+
+// B) Aggiungi mutazione per MARCARE come "in lavorazione"
+export const markJobAsProcessing = internalMutation({
+  args: { jobId: v.id("embeddingQueue") },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.patch(args.jobId, { 
+      processing: true,
+      processingStartedAt: now  // Per debug e timeout
+    });
+    console.log(`[Lock] Job ${args.jobId} marcato come in lavorazione`);
+  }
+});
+
+// C) OPZIONALE: Funzione per sbloccare job "stuck"
+// Utile se un worker crasha e lascia job bloccati
+export const unlockStuckJobs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const TIMEOUT_MS = 5 * 60 * 1000; // 5 minuti
+    const now = Date.now();
+    
+    const stuckJobs = await ctx.db
+      .query("embeddingQueue")
+      .filter(q => q.eq(q.field("processing"), true))
+      .collect();
+    
+    let unlockedCount = 0;
+    for (const job of stuckJobs) {
+      // Controlla se il job è in elaborazione da più di 5 minuti
+      if (job.processingStartedAt && (now - job.processingStartedAt) > TIMEOUT_MS) {
+        await ctx.db.patch(job._id, { 
+          processing: false,
+          processingStartedAt: undefined
+        });
+        unlockedCount++;
+        console.log(`[Lock] Sbloccato job stuck: ${job._id}`);
+      }
+    }
+    
+    return `Sbloccati ${unlockedCount} job`;
   }
 });
 
@@ -433,9 +619,7 @@ export const deleteQueueJob = internalMutation({
   }
 });
 
-
-// --- 8. BACKFILL ---
-
+// --- FUNZIONI DI BACKFILL (MODIFICATE) ---
 export const getAllPageContents = internalQuery({
   handler: async (ctx) => {
     return await ctx.db.query("pageContent").fullTableScan().collect();
@@ -466,53 +650,68 @@ export const backfillAllPages = internalAction({
   }
 });
 
-// Aggiungi temporaneamente questo al tuo search.ts
+// Query helper per hashBlocks (legge anche il testo)
+export const getAllBlocksWithText = internalQuery({
+  handler: async (ctx) => {
+    return await ctx.db.query("textBlocks").collect();
+  }
+});
 
+// Mutazione helper per hashBlocks
+export const updateContentHash = internalMutation({
+  args: {
+    blockId: v.id("textBlocks"),
+    contentHash: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.blockId, { contentHash: args.contentHash });
+  }
+});
+
+// Funzione di pulizia (MODIFICATA per 2 tabelle)
 export const clearAndRebuild = internalAction({
   handler: async (ctx) => {
-    console.log("[Clear] Cancellazione di tutti i textBlocks...");
+    console.log("[Clear] Cancellazione di tutti i textBlocks e blockEmbeddings...");
     
-    // 1. Prendi tutti i blocchi
     const allBlocks = await ctx.runQuery(internal.search.getAllBlocks);
+    const allEmbeddings = await ctx.runQuery(internal.search.getAllEmbeddings);
     
-    // 2. Cancellali uno per uno
     for (const block of allBlocks) {
-      await ctx.runMutation(internal.search.deleteBlock, { blockId: block._id });
+      await ctx.runMutation(internal.search.deleteTextBlock, { textBlockId: block._id });
+    }
+    for (const embedding of allEmbeddings) {
+      await ctx.runMutation(internal.search.deleteBlockEmbedding, { embeddingId: embedding._id });
     }
     
-    console.log(`[Clear] ✅ Cancellati ${allBlocks.length} blocchi`);
-    
-    // 3. Ora ri-indicizza tutto
+    console.log(`[Clear] ✅ Cancellati ${allBlocks.length} blocchi e ${allEmbeddings.length} embedding.`);
     console.log("[Rebuild] Avvio re-indicizzazione...");
+    
     const result = await ctx.runAction(internal.search.backfillAllPages, {});
     
     return {
-      deleted: allBlocks.length,
+      deletedBlocks: allBlocks.length,
+      deletedEmbeddings: allEmbeddings.length,
       result: result
     };
   }
 });
 
-// Aggiungi anche questa query helper
+// Helper per clearAndRebuild
 export const getAllBlocks = internalQuery({
   handler: async (ctx) => {
     return await ctx.db.query("textBlocks").collect();
   }
 });
 
-
-export const getPagesByIds = internalQuery({
-  args: { ids: v.array(v.id("pages")) },
-  handler: async (ctx, args) => {
-    if (args.ids.length === 0) return [];
-    return await ctx.db
-      .query("pages")
-      .filter(q => q.or(...args.ids.map(id => q.eq(q.field("_id"), id))))
-      .collect();
-  },
+// Helper per clearAndRebuild
+export const getAllEmbeddings = internalQuery({
+  handler: async (ctx) => {
+    return await ctx.db.query("blockEmbeddings").collect();
+  }
 });
 
-// Helper per recuperare i documenti completi dei blocchi di testo
+
+// (Questa non è più usata da searchInternal, ma la lasciamo per ora)
 export const getBlocksByIds = internalQuery({
   args: { ids: v.array(v.id("textBlocks")) },
   handler: async (ctx, args) => {
@@ -523,3 +722,147 @@ export const getBlocksByIds = internalQuery({
       .collect();
   },
 });
+
+export const getAllPageIdsForUser = internalQuery({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    // Usa l'indice 'byUser' sulla tabella 'pages'
+    const pages = await ctx.db
+      .query("pages")
+      .withIndex("byUser", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    // Restituisce solo gli ID
+    return pages.map(p => p._id);
+  },
+});
+
+
+
+export const cleanDuplicateBlocks = internalAction({
+  handler: async (ctx) => {
+    console.log("[Clean] Ricerca duplicati...");
+    
+    const allBlocks = await ctx.runQuery(internal.search.getAllBlocks);
+    const seen = new Map<string, Id<"textBlocks">>();
+    let deletedCount = 0;
+    
+    for (const block of allBlocks) {
+      const key = `${block.pageId}-${block.blockId}`;
+      
+      if (seen.has(key)) {
+        // È un duplicato, cancellalo
+        await ctx.runMutation(internal.search.deleteTextBlock, { 
+          textBlockId: block._id 
+        });
+        deletedCount++;
+        console.log(`[Clean] Cancellato duplicato: ${block.blockId}`);
+      } else {
+        seen.set(key, block._id);
+      }
+    }
+    
+    return `[Clean] ✅ Cancellati ${deletedCount} duplicati`;
+  }
+});
+
+
+
+// ============================================
+// SCRIPT DI PULIZIA DUPLICATI
+// ============================================
+// Aggiungi temporaneamente al tuo search.ts
+
+// 1. Pulisce i duplicati da textBlocks
+export const cleanDuplicateTextBlocks = internalAction({
+  handler: async (ctx) => {
+    console.log("[Clean TextBlocks] 🔍 Ricerca duplicati in textBlocks...");
+    
+    const allBlocks = await ctx.runQuery(internal.search.getAllBlocks);
+    console.log(`[Clean TextBlocks] Trovati ${allBlocks.length} blocchi totali`);
+    
+    // Mappa: "pageId-blockId" -> primo documento trovato
+    const seen = new Map<string, Id<"textBlocks">>();
+    const toDelete: Id<"textBlocks">[] = [];
+    
+    for (const block of allBlocks) {
+      const key = `${block.pageId}-${block.blockId}`;
+      
+      if (seen.has(key)) {
+        // È un duplicato, segnalo per cancellazione
+        toDelete.push(block._id);
+        console.log(`[Clean TextBlocks] Duplicato trovato: blockId=${block.blockId}`);
+      } else {
+        seen.set(key, block._id);
+      }
+    }
+    
+    console.log(`[Clean TextBlocks] Trovati ${toDelete.length} duplicati da cancellare`);
+    
+    // Cancella i duplicati
+    for (const id of toDelete) {
+      await ctx.runMutation(internal.search.deleteTextBlock, { textBlockId: id });
+    }
+    
+    const result = `[Clean TextBlocks] ✅ Cancellati ${toDelete.length} duplicati su ${allBlocks.length} blocchi totali`;
+    console.log(result);
+    return result;
+  }
+});
+
+// 2. Pulisce i duplicati da blockEmbeddings
+export const cleanDuplicateEmbeddings = internalAction({
+  handler: async (ctx) => {
+    console.log("[Clean Embeddings] 🔍 Ricerca duplicati in blockEmbeddings...");
+    
+    const allEmbeddings = await ctx.runQuery(internal.search.getAllEmbeddings);
+    console.log(`[Clean Embeddings] Trovati ${allEmbeddings.length} embeddings totali`);
+    
+    // Mappa: "pageId-blockId" -> primo documento trovato
+    const seen = new Map<string, Id<"blockEmbeddings">>();
+    const toDelete: Id<"blockEmbeddings">[] = [];
+    
+    for (const embedding of allEmbeddings) {
+      const key = `${embedding.pageId}-${embedding.blockId}`;
+      
+      if (seen.has(key)) {
+        // È un duplicato, segnalo per cancellazione
+        toDelete.push(embedding._id);
+        console.log(`[Clean Embeddings] Duplicato trovato: blockId=${embedding.blockId}`);
+      } else {
+        seen.set(key, embedding._id);
+      }
+    }
+    
+    console.log(`[Clean Embeddings] Trovati ${toDelete.length} duplicati da cancellare`);
+    
+    // Cancella i duplicati
+    for (const id of toDelete) {
+      await ctx.runMutation(internal.search.deleteBlockEmbedding, { embeddingId: id });
+    }
+    
+    const result = `[Clean Embeddings] ✅ Cancellati ${toDelete.length} duplicati su ${allEmbeddings.length} embeddings totali`;
+    console.log(result);
+    return result;
+  }
+});
+
+// 3. Pulisce ENTRAMBE le tabelle in sequenza
+export const cleanAllDuplicates = internalAction({
+  handler: async (ctx) => {
+    console.log("[Clean All] 🧹 Avvio pulizia completa...");
+    
+    const textResult = await ctx.runAction(internal.search.cleanDuplicateTextBlocks);
+    const embResult = await ctx.runAction(internal.search.cleanDuplicateEmbeddings);
+    
+    const finalResult = {
+      textBlocks: textResult,
+      embeddings: embResult,
+      summary: "✅ Pulizia completata!"
+    };
+    
+    console.log("[Clean All] ✅ Pulizia completata!");
+    return finalResult;
+  }
+});
+
