@@ -52,17 +52,18 @@ export default defineSchema({
 
   // 2. Tabella "blockEmbeddings" (PESANTE)
   // Contiene solo i vettori per la ricerca AI.
-  blockEmbeddings: defineTable({
+blockEmbeddings: defineTable({
     pageId: v.id("pages"), 
-    blockId: v.string(), // Chiave composita per collegare a textBlocks
+    blockId: v.string(), 
     embedding: v.array(v.float64()),
-    // --- 'textBlockId' rimosso per evitare ridondanza ---
   })
-    .index("by_pageId_blockId", ["pageId", "blockId"]) // Per trovare/pulire i vettori
+    .index("by_pageId_blockId", ["pageId", "blockId"]) 
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
       dimensions: 768,
-      filterFields: ["pageId"],
+      // --- INIZIO CORREZIONE ---
+      filterFields: ["pageId", "blockId"], // <-- AGGIUNGI "blockId" QUI
+      // --- FINE CORREZIONE ---
     }),
 
   // --- FINE OTTIMIZZAZIONE BANDA ---

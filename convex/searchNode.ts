@@ -1,7 +1,7 @@
 // File: convex/searchNode.ts
-// (SOSTITUZIONE COMPLETA - Adattata allo schema a 2 tabelle)
+// (SOSTITUZIONE COMPLETA - Con gestione errori e lock corretta)
 
-"use node"; // <-- DI DIRETTIVA PIÙ IMPORTANTE: deve essere la prima riga
+"use node"; // <-- DEVE ESSERE LA PRIMA RIGA
 
 import { v } from "convex/values";
 import { 
@@ -21,7 +21,7 @@ const extractTextFromNode = (node: any): { id: string; text: string }[] => {
   
   if (searchableTypes.includes(node.type) && nodeId) {
     const text = node.content?.map((n: any) => n.text).join("") || "";
-    // Ottimizzazione Granularità: soglia aumentata
+    // Ottimizzazione Granularità: soglia 50 caratteri
     if (text.trim().length > 50) { 
       blocks.push({ id: nodeId, text: text }); 
     }
@@ -43,24 +43,22 @@ type NewBlock = { id: string; text: string; hash: string }; // Ora include l'has
 const findBlock = (list: NewBlock[], id: string) => list.find(b => b.id === id);
 
 
-// --- WORKER DELLA CODA (MODIFICATO PER 2 TABELLE) ---
+// --- WORKER DELLA CODA (CORRETTO) ---
 export const processEmbeddingQueue = internalAction({
   handler: async (ctx) => {
     // 1. Prendi il prossimo lavoro DISPONIBILE (non in processing)
     const job = await ctx.runQuery(internal.search.getNextQueueJob);
     if (!job) {
-      console.log("[Queue] Coda vuota o tutti i job in elaborazione");
-      return;
+      return; // Corretto: la catena si ferma qui
     }
 
     // 2. IMPORTANTE: Marca subito come "in lavorazione" (LOCK)
     await ctx.runMutation(internal.search.markJobAsProcessing, { jobId: job._id });
 
     const { pageId, contentJson } = job;
-    console.log(`[Queue] 🔒 Lock acquisito per pagina: ${pageId}`);
     
     try {
-      // ... tutto il resto del codice di elaborazione rimane uguale ...
+      // --- INIZIO LOGICA DI ELABORAZIONE ---
       const oldTextBlocks = await ctx.runQuery(internal.search.getBlocksForPage, { pageId });
       const oldEmbeddings = await ctx.runQuery(internal.search.getEmbeddingsForPage, { pageId });
       
@@ -118,6 +116,7 @@ export const processEmbeddingQueue = internalAction({
 
       // Aggiornamento (con UPSERT)
       for (const block of blocksToUpdate) {
+        // Aggiorna textBlock (se esiste)
         const oldDoc = oldTextBlocks.find(b => b.blockId === block.id);
         if (oldDoc) {
           await ctx.runMutation(internal.search.updateTextBlock, { 
@@ -127,16 +126,19 @@ export const processEmbeddingQueue = internalAction({
           });
         }
         
+        // Cancella vecchio embedding (se esiste)
         const embeddingDoc = oldEmbeddings.find(e => e.blockId === block.id);
         if (embeddingDoc) {
           await ctx.runMutation(internal.search.deleteBlockEmbedding, { embeddingId: embeddingDoc._id });
         }
 
+        // Crea nuovo embedding
         const embedding = await ctx.runAction(internal.search.embed, {
           text: block.text,
           inputType: "document"
         });
         
+        // Inserisci nuovo embedding (usando upsert per sicurezza)
         if (embedding.length > 0) {
           await ctx.runMutation(internal.search.upsertBlockEmbedding, {
             pageId: pageId,
@@ -147,26 +149,29 @@ export const processEmbeddingQueue = internalAction({
       }
 
       const unchangedCount = oldTextBlocks.length - blocksToRemove.length - blocksToUpdate.length;
-      console.log(`[Queue] ✅ Pagina ${pageId} (Add:${blocksToAdd.length}, Rem:${blocksToRemove.length}, Upd:${blocksToUpdate.length}, Unch:${unchangedCount})`);
+      // --- FINE LOGICA DI ELABORAZIONE ---
+
+      // 3. Rimuovi il lavoro COMPLETATO (SPOSTATO DENTRO IL TRY)
+      await ctx.runMutation(internal.search.deleteQueueJob, { jobId: job._id });
 
     } catch (e: any) {
       console.error(`[Queue] ❌ Errore pagina ${pageId}:`, e?.message || e);
-      // In caso di errore, sblocca il job per ritentare
-      await ctx.runMutation(internal.search.markJobAsProcessing, { 
+      
+      // --- CORREZIONE GESTIONE ERRORE ---
+      // In caso di errore, SBLOCCA il job per ritentare
+      await ctx.runMutation(internal.search.unmarkJobAsProcessing, { 
         jobId: job._id 
       });
-      // Poi cancellalo comunque per evitare loop infiniti
+      // NON cancellare il job. La catena si fermerà qui
+      // per evitare loop infiniti di errori.
+      return; // Interrompi l'esecuzione
     }
     
-    // 3. Rimuovi il lavoro completato (UNLOCK automatico)
-    await ctx.runMutation(internal.search.deleteQueueJob, { jobId: job._id });
-    console.log(`[Queue] 🔓 Lock rilasciato per pagina: ${pageId}`);
-
-    // 4. Schedula il prossimo
+    // 4. Schedula il prossimo (ora si trova fuori dal try/catch)
     const nextJob = await ctx.runQuery(internal.search.getNextQueueJob);
     if (nextJob) {
-      console.log("[Queue] Scheduling prossimo job...");
-      await ctx.scheduler.runAfter(1000, internal.searchNode.processEmbeddingQueue, {});
+      // Schedula a 0ms per massima velocità
+      await ctx.scheduler.runAfter(0, internal.searchNode.processEmbeddingQueue, {});
     } else {
       console.log("[Queue] ✅ Coda completata!");
     }
@@ -176,20 +181,16 @@ export const processEmbeddingQueue = internalAction({
 // --- FUNZIONE BACKFILL HASH (SPOSTATA QUI) ---
 export const hashBlocks = internalAction({
   handler: async (ctx) => {
-    // Non serve "use node" qui perché è già all'inizio del file
-    console.log("[Backfill Hash] Avvio hashing di tutti i blocchi esistenti...");
     
     // 1. Ottieni TUTTI i blocchi (dalla tabella 'textBlocks')
     const allBlocks = await ctx.runQuery(internal.search.getAllBlocksWithText);
     
-    console.log(`[Backfill Hash] Trovati ${allBlocks.length} blocchi da controllare...`);
     let updatedCount = 0;
     
     // 2. Itera e aggiorna
     for (const block of allBlocks) {
       const newHash = crypto.createHash('sha256').update(block.text).digest('hex');
       
-      // Aggiorna solo se l'hash è diverso o mancante
       if (block.contentHash !== newHash) {
         await ctx.runMutation(internal.search.updateContentHash, {
           blockId: block._id,
@@ -200,7 +201,6 @@ export const hashBlocks = internalAction({
     }
     
     const result = `[Backfill Hash] ✅ Completato. ${updatedCount} blocchi aggiornati.`;
-    console.log(result);
     return result;
   }
 });
