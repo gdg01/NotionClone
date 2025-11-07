@@ -1,4 +1,5 @@
-// File: src/components/Sidebar.tsx (SOSTITUZIONE COMPLETA)
+// File: src/components/Sidebar.tsx 
+// (SOSTITUZIONE COMPLETA - Con sezioni Pinned/Private e logica Pin)
 
 import React, { useState, useRef } from 'react';
 import type { Page } from '../App';
@@ -13,15 +14,19 @@ import {
   ChevronDoubleLeftIcon,
   GlobeIcon,
   FilterIcon,
-  CheckSquareIcon, // <-- 1. IMPORTA LA NUOVA ICONA
+  CheckSquareIcon,
+  PinIcon, // <-- 1. IMPORTA NUOVA ICONA
+  PinOffIcon // <-- 2. IMPORTA NUOVA ICONA
 } from './icons';
 import { EmojiPicker } from './EmojiPicker';
 import { useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
+import { Doc } from '../convex/_generated/dataModel';
 
-type PageWithChildren = Page & { hasChildren: boolean };
+// Il tipo ora include 'isPinned' (anche se Page già lo aveva)
+type PageWithChildren = Page & { hasChildren: boolean; isPinned?: boolean };
 
-// --- Interfaccia props per Sidebar (MODIFICATA) ---
+// --- Interfaccia props per Sidebar (invariata) ---
 interface SidebarProps {
   onAddPage: (parentId: string | null) => void;
   onDeletePage: (pageId: string) => void;
@@ -39,10 +44,10 @@ interface SidebarProps {
   onOpenGraphView: () => void;
   onOpenFlowView: (pageId: string) => void;
   onOpenFlowAndEditor: (pageId: string) => void;
-  onOpenTasksView: () => void; // <-- 2. AGGIUNGI LA NUOVA PROP
+  onOpenTasksView: () => void;
 }
 
-// --- Interfaccia props per PageItem (MODIFICATA) ---
+// --- Interfaccia props per PageItem (invariata) ---
 interface PageItemProps {
   page: PageWithChildren;
   level: number;
@@ -59,7 +64,7 @@ interface PageItemProps {
   onOpenFlowAndEditor: (pageId: string) => void;
 }
 
-// --- Componente PageItem (Invariato rispetto all'ultima versione) ---
+// --- Componente PageItem (MODIFICATO) ---
 const PageItem: React.FC<PageItemProps> = ({
   page,
   level,
@@ -78,10 +83,18 @@ const PageItem: React.FC<PageItemProps> = ({
 
   const isActive = page._id === activePageId;
   const hasChildren = page.hasChildren;
-  const childPages = useQuery(
+  
+  // --- 3. MODIFICA QUERY FIGLI ---
+  // La query ora restituisce un oggetto { pinned, private }
+  const childPagesData = useQuery(
     api.pages.getSidebar,
     isExpanded && hasChildren ? { parentPage: page._id } : 'skip'
   );
+  
+  // Estrai gli elenchi
+  const pinnedChildPages = childPagesData?.pinned;
+  const privateChildPages = childPagesData?.private;
+  // --- FINE MODIFICA 3 ---
 
   const handleIconClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -96,6 +109,13 @@ const PageItem: React.FC<PageItemProps> = ({
       onSelectPage(page._id);
     }
   };
+  
+  // --- 4. FUNZIONE PER FISSARE/SBLOCCARE ---
+  const handleTogglePin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onUpdatePage(page._id, { isPinned: !page.isPinned });
+  };
+  // --- FINE MODIFICA 4 ---
 
   return (
     <div>
@@ -149,7 +169,21 @@ const PageItem: React.FC<PageItemProps> = ({
           </div>
           <span className="truncate flex-grow">{page.title || 'Untitled'}</span>
         </div>
+        
+        {/* --- 5. MODIFICA CONTROLLI HOVER --- */}
         <div className="flex items-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+           <button
+            onClick={handleTogglePin}
+            className="p-1 rounded hover:bg-notion-active dark:hover:bg-notion-active-dark"
+            title={page.isPinned ? "Sblocca pagina" : "Fissa pagina"}
+          >
+            {page.isPinned ? (
+               <PinOffIcon className="w-3.5 h-3.5 text-blue-500" />
+            ) : (
+               <PinIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
+            )}
+          </button>
+          
            <button
             onClick={(e) => {
               e.stopPropagation();
@@ -179,11 +213,25 @@ const PageItem: React.FC<PageItemProps> = ({
             <AddPageIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
           </button>
         </div>
+        {/* --- FINE MODIFICA 5 --- */}
       </div>
 
-      {isExpanded && childPages && (
-        <div>
-          {childPages.map((child) => (
+      {/* --- 6. MODIFICA RENDER FIGLI --- */}
+      {/* Ora renderizza due sezioni separate per i figli */}
+      {isExpanded && (childPagesData === undefined) && (
+        // Stato di caricamento
+        <div
+          style={{ paddingLeft: `${(level + 1) * 16 + 4}px` }}
+          className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark py-1"
+        >
+          Loading...
+        </div>
+      )}
+      
+      {isExpanded && childPagesData && (
+        <>
+          {/* Figli Fissati */}
+          {pinnedChildPages && pinnedChildPages.map((child) => (
             <PageItem
               key={child._id}
               page={child}
@@ -198,16 +246,25 @@ const PageItem: React.FC<PageItemProps> = ({
               onOpenFlowAndEditor={onOpenFlowAndEditor}
             />
           ))}
-        </div>
+          {/* Figli Privati */}
+          {privateChildPages && privateChildPages.map((child) => (
+            <PageItem
+              key={child._id}
+              page={child}
+              level={level + 1}
+              onAddPage={onAddPage}
+              onDeletePage={onDeletePage}
+              onSelectPage={onSelectPage}
+              onOpenInSplitView={onOpenInSplitView}
+              onUpdatePage={onUpdatePage}
+              activePageId={activePageId}
+              onOpenFlowView={onOpenFlowView}
+              onOpenFlowAndEditor={onOpenFlowAndEditor}
+            />
+          ))}
+        </>
       )}
-      {isExpanded && hasChildren && childPages === undefined && (
-        <div
-          style={{ paddingLeft: `${(level + 1) * 16 + 4}px` }}
-          className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark py-1"
-        >
-          Loading...
-        </div>
-      )}
+      {/* --- FINE MODIFICA 6 --- */}
     </div>
   );
 };
@@ -227,11 +284,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGraphView,
   onOpenFlowView,
   onOpenFlowAndEditor,
-  onOpenTasksView, // <-- 3. RICEVI LA PROP DA APP.TSX
+  onOpenTasksView,
 }) => {
-  const topLevelPages = useQuery(api.pages.getSidebar, {
+  // --- 7. MODIFICA QUERY PRINCIPALE ---
+  // La query ora restituisce un oggetto { pinned, private }
+  const topLevelPagesData = useQuery(api.pages.getSidebar, {
     parentPage: undefined,
   });
+
+  const pinnedPages = topLevelPagesData?.pinned;
+  const privatePages = topLevelPagesData?.private;
+  // --- FINE MODIFICA 7 ---
 
   return (
     <>
@@ -259,29 +322,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <ChevronDoubleLeftIcon className="w-5 h-5" />
           </button>
         </div>
+      
+      {/* --- 8. MODIFICA NAVIGAZIONE --- */}
       <nav className="flex-1 px-2 overflow-y-auto">
-          {topLevelPages === undefined && (
+          {topLevelPagesData === undefined && (
             <div className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark p-2">
               Loading pages...
             </div>
           )}
-          {topLevelPages &&
-            topLevelPages.map((page) => (
-              <PageItem
-                key={page._id}
-                page={page}
-                level={0}
-                onAddPage={onAddPage}
-                onDeletePage={onDeletePage}
-                onSelectPage={onSelectPage}
-                onOpenInSplitView={onOpenInSplitView}
-                onUpdatePage={onUpdatePage}
-                activePageId={activePageId}
-                onOpenFlowView={onOpenFlowView}
-                onOpenFlowAndEditor={onOpenFlowAndEditor}
-              />
-            ))}
+
+          {/* Sezione Pagine Fissate */}
+          {pinnedPages && pinnedPages.length > 0 && (
+            <div className="mt-2">
+              <div className="sidebar-section-header">
+                Fissate
+              </div>
+              {pinnedPages.map((page) => (
+                <PageItem
+                  key={page._id}
+                  page={page}
+                  level={0}
+                  onAddPage={onAddPage}
+                  onDeletePage={onDeletePage}
+                  onSelectPage={onSelectPage}
+                  onOpenInSplitView={onOpenInSplitView}
+                  onUpdatePage={onUpdatePage}
+                  activePageId={activePageId}
+                  onOpenFlowView={onOpenFlowView}
+                  onOpenFlowAndEditor={onOpenFlowAndEditor}
+                />
+              ))}
+            </div>
+          )}
+          
+          {/* Sezione Pagine Private */}
+          {privatePages && (
+             <div className="mt-2">
+              <div className="sidebar-section-header">
+                Private
+              </div>
+              {privatePages.length === 0 && pinnedPages?.length === 0 && (
+                 <div className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark p-2">
+                   Nessuna pagina.
+                 </div>
+              )}
+              {privatePages.map((page) => (
+                <PageItem
+                  key={page._id}
+                  page={page}
+                  level={0}
+                  onAddPage={onAddPage}
+                  onDeletePage={onDeletePage}
+                  onSelectPage={onSelectPage}
+                  onOpenInSplitView={onOpenInSplitView}
+                  onUpdatePage={onUpdatePage}
+                  activePageId={activePageId}
+                  onOpenFlowView={onOpenFlowView}
+                  onOpenFlowAndEditor={onOpenFlowAndEditor}
+                />
+              ))}
+            </div>
+          )}
         </nav>
+        {/* --- FINE MODIFICA 8 --- */}
         
          <div className="p-2 border-t border-notion-border dark:border-notion-border-dark flex items-center space-x-2">
           <button
@@ -292,7 +395,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Add a new page
           </button>
 
-          {/* --- 4. MODIFICA QUI: Aggiungi il pulsante Tasks --- */}
+          {/* Il resto del footer è invariato */}
           <button
             onClick={onOpenTasksView}
             className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
@@ -301,8 +404,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <CheckSquareIcon className="w-4 h-4" />
           </button>
-          {/* --- FINE MODIFICA --- */}
-
+          
           <button
             onClick={onOpenGraphView}
             className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"

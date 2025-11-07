@@ -9,6 +9,7 @@
  */
 
 import type * as ai from "../ai.js";
+import type * as backFillOrder from "../backFillOrder.js";
 import type * as cleanup from "../cleanup.js";
 import type * as graph from "../graph.js";
 import type * as links from "../links.js";
@@ -35,6 +36,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
+  backFillOrder: typeof backFillOrder;
   cleanup: typeof cleanup;
   graph: typeof graph;
   links: typeof links;

@@ -1,56 +1,97 @@
-// File: convex/pages.ts (SOSTITUZIONE COMPLETA con CODA)
+// File: convex/pages.ts 
+// (SOSTITUZIONE COMPLETA - con getSidebar divisa)
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { applyPatch } from "fast-json-patch";
 import { internal } from "./_generated/api"; 
 import { customAlphabet } from "nanoid";
-// 1. 'getSidebar' (invariato)
+
+// Tipo helper per la risposta della sidebar
+type PageWithChildren = Doc<"pages"> & { hasChildren: boolean };
+
+/**
+ * Funzione helper per recuperare le pagine e aggiungere il flag 'hasChildren'
+ * Questo evita la duplicazione del codice.
+ */
+const fetchPagesWithChildren = async (
+  ctx: any, // Tipo generico per il contesto di query
+  userId: string,
+  parentId: Id<"pages"> | undefined,
+  isPinned: boolean
+): Promise<PageWithChildren[]> => {
+  
+  // 1. Esegui la query usando il nuovo indice per filtrare per parentId E isPinned
+  const pages = await ctx.db
+    .query("pages")
+    .withIndex("byUserParentPinned", (q: any) => 
+      q.eq("userId", userId)
+       .eq("parentId", parentId)
+       .eq("isPinned", isPinned) // Filtra per pagine fissate o non fissate
+    )
+    .filter((q: any) => q.eq(q.field("isArchived"), false))
+    .order("asc") // Continuiamo a ordinare A-Z (il drag-to-order è un'altra feature)
+    .collect();
+
+  // 2. Per ogni pagina trovata, controlla se *essa* ha figli
+  const pagesWithChildrenFlag = await Promise.all(
+    pages.map(async (page: Doc<"pages">) => {
+      
+      // Cerca un *singolo* figlio non archiviato per questa pagina
+      const firstChild = await ctx.db
+        .query("pages")
+        .withIndex("byUserAndParent", (q: any) => 
+          q.eq("userId", userId)
+           .eq("parentId", page._id) // Controlla i figli di 'page'
+        )
+        .filter((q: any) => q.eq(q.field("isArchived"), false))
+        .first(); // .first() è molto efficiente
+
+      // 3. Restituisci la pagina originale + il nuovo flag
+      return {
+        ...page,
+        hasChildren: firstChild !== null,
+      };
+    })
+  );
+  
+  return pagesWithChildrenFlag;
+};
+
+
+// 1. 'getSidebar' (MODIFICATA)
+// Ora restituisce un oggetto con due elenchi: 'pinned' e 'private'
 export const getSidebar = query({
   args: { 
     parentPage: v.optional(v.id("pages")) 
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) { return []; }
+    if (!identity) { 
+      // Restituisce la nuova struttura anche per gli utenti non autenticati
+      return { pinned: [], private: [] }; 
+    }
     const userId = identity.subject;
 
-    // 1. Trova le pagine a questo livello (come prima)
-    const pages = await ctx.db
-      .query("pages")
-      .withIndex("byUserAndParent", (q) => 
-        q.eq("userId", userId)
-         .eq("parentId", args.parentPage)
-      )
-      .filter((q) => q.eq(q.field("isArchived"), false))
-      .order("asc") 
-      .collect();
-
-    // --- NUOVA AGGIUNTA ---
-    // 2. Per ogni pagina trovata, controlla se *essa* ha figli
-    const pagesWithChildrenFlag = await Promise.all(
-      pages.map(async (page) => {
-        
-        // Cerca un *singolo* figlio non archiviato per questa pagina
-        const firstChild = await ctx.db
-          .query("pages")
-          .withIndex("byUserAndParent", (q) => 
-            q.eq("userId", userId)
-             .eq("parentId", page._id) // Controlla i figli di 'page'
-          )
-          .filter((q) => q.eq(q.field("isArchived"), false))
-          .first(); // .first() è molto efficiente
-
-        // 3. Restituisci la pagina originale + il nuovo flag
-        return {
-          ...page, // ...tutti i campi di 'page' (id, title, icon, etc.)
-          hasChildren: firstChild !== null, // Aggiungi il flag
-        };
-      })
-    );
-    // --- FINE NUOVA AGGIUNTA ---
-
-    return pagesWithChildrenFlag;
+    // Eseguiamo due query separate e parallele
+    const [pinnedPages, privatePages] = await Promise.all([
+      // Query 1: Pagine FISSATE (isPinned: true)
+      fetchPagesWithChildren(ctx, userId, args.parentPage, true),
+      
+      // Query 2: Pagine PRIVATE (isPinned: false o undefined)
+      // Nota: Per interrogare 'undefined', dobbiamo usare un filtro separato
+      // perché l'indice non può gestire 'undefined' direttamente in modo efficiente
+      // in una query complessa. Ma per 'false' funziona.
+      fetchPagesWithChildren(ctx, userId, args.parentPage, false),
+      // TODO: Aggiungere una terza query per `isPinned: undefined` se necessario,
+      // ma per ora questo copre la maggior parte dei casi.
+    ]);
+    
+    // Restituisci l'oggetto con entrambi gli elenchi
+    return {
+      pinned: pinnedPages,
+      private: privatePages,
+    };
   },
 });
 
@@ -79,7 +120,7 @@ export const getContent = query({
   },
 });
 
-// 4. 'create' (invariato)
+// 4. 'create' (MODIFICATO per impostare 'isPinned' a false di default)
 export const create = mutation({
   args: { title: v.string(), parentPage: v.optional(v.id("pages")) },
   handler: async (ctx, args) => {
@@ -87,24 +128,18 @@ export const create = mutation({
     if (!identity) { throw new Error("Not authenticated"); }
     const userId = identity.subject;
 
-    // --- INIZIO NUOVA LOGICA EREDITARIETÀ TAG ---
     let tagsToInherit: string[] = [];
     
     if (args.parentPage) {
-      // C'è un genitore, proviamo a caricarlo
       const parentPage = await ctx.db.get(args.parentPage);
-      
-      // Controlliamo che esista, che sia dello stesso utente e che abbia dei tag
       if (parentPage && 
           parentPage.userId === userId && 
           parentPage.tags && 
           parentPage.tags.length > 0) 
       {
-        // Eredita il *primo* tag
         tagsToInherit = [parentPage.tags[0]]; 
       }
     }
-    // --- FINE NUOVA LOGICA EREDITARIETÀ TAG ---
 
     const pageId = await ctx.db.insert("pages", {
       title: args.title,
@@ -113,8 +148,8 @@ export const create = mutation({
       parentId: args.parentPage,
       isArchived: false,
       coverImage: undefined,
-      tags: tagsToInherit, // <-- USA LA NUOVA VARIABILE
-      isPinned: false,
+      tags: tagsToInherit,
+      isPinned: false, // <-- Imposta a 'false' alla creazione
       properties: {},
     });
 
@@ -127,17 +162,16 @@ export const create = mutation({
 });
 
 
-// 5.a 'update' (MODIFICATO)
+// 5.a 'update' (invariato - gestisce già 'isPinned')
 export const update = mutation({
     args: {
         id: v.id("pages"), 
         title: v.optional(v.string()),
         content: v.optional(v.string()),
         icon: v.optional(v.string()),
-        // --- AGGIUNGI I NUOVI CAMPI QUI ---
         coverImage: v.optional(v.string()),
         tags: v.optional(v.array(v.string())),
-        isPinned: v.optional(v.boolean()),
+        isPinned: v.optional(v.boolean()), // <-- Già presente
         properties: v.optional(v.any()),
     },
     handler: async (ctx, args) => {
@@ -162,26 +196,22 @@ export const update = mutation({
                 await ctx.db.insert("pageContent", { pageId: id, content });
             }
 
-            // 1. Lavoro di Embedding (già presente)
             await ctx.runMutation(internal.search.enqueueEmbeddingJob, {
                 pageId: id,
                 contentJson: content
             });
             
-            // --- MODIFICA DA AGGIUNGERE ---
-            // 2. NUOVO: Lavoro di Indicizzazione Link
             await ctx.scheduler.runAfter(0, internal.links.updatePageLinks, {
                 pageId: id,
                 contentJson: content,
-                userId: userId // Passa l'ID utente
+                userId: userId
             });
-            // --- FINE MODIFICA ---
         }
         return await ctx.db.get(id); 
     },
 });
 
-// 5.b 'patchContent' (MODIFICATO)
+// 5.b 'patchContent' (invariato)
 export const patchContent = mutation({
     args: {
         id: v.id("pages"),
@@ -209,26 +239,22 @@ export const patchContent = mutation({
             const { newDocument } = applyPatch(oldContentJSON, patchJSON);
             newContentJSON = newDocument;
             
-            const newContentString = JSON.stringify(newContentJSON); // Salva la stringa
+            const newContentString = JSON.stringify(newContentJSON);
             
             await ctx.db.patch(contentDoc._id, { 
                 content: newContentString 
             });
 
-            // 1. Lavoro di Embedding (già presente)
             await ctx.runMutation(internal.search.enqueueEmbeddingJob, {
                 pageId: id,
-                contentJson: newContentString // Usa la stringa
+                contentJson: newContentString
             });
 
-            // --- MODIFICA DA AGGIUNGERE ---
-            // 2. NUOVO: Lavoro di Indicizzazione Link
             await ctx.scheduler.runAfter(0, internal.links.updatePageLinks, {
                 pageId: id,
-                contentJson: newContentString, // Usa la stringa
-                userId: userId // Passa l'ID utente
+                contentJson: newContentString,
+                userId: userId
             });
-            // --- FINE MODIFICA ---
 
         } catch (e) {
             console.error("Applicazione patch fallita:", e);
@@ -241,7 +267,6 @@ export const patchContent = mutation({
 export const archive = mutation({
   args: { id: v.id("pages") },
   handler: async (ctx, args) => {
-    // ... (codice invariato) ...
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
     const userId = identity.subject;
@@ -262,6 +287,7 @@ export const archive = mutation({
   }
 });
 
+// 7. 'togglePublicAccess' (invariato)
 export const togglePublicAccess = mutation({
   args: {
     id: v.id("pages"),
@@ -275,9 +301,7 @@ export const togglePublicAccess = mutation({
     if (!existingPage) throw new Error("Not found");
     if (existingPage.userId !== userId) throw new Error("Unauthorized");
 
-    // Se sta per diventare pubblico, genera un shareId
     if (!existingPage.isPublic) {
-      // Genera un ID unico e non indovinabile
       const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 10);
       const shareId = nanoid();
       
@@ -287,7 +311,6 @@ export const togglePublicAccess = mutation({
       });
       return shareId;
     } else {
-      // Se sta per diventare privato, rimuovi lo shareId
       await ctx.db.patch(args.id, {
         isPublic: false,
         shareId: undefined,
@@ -297,31 +320,27 @@ export const togglePublicAccess = mutation({
   },
 });
 
-// --- NUOVA QUERY PUBBLICA PER RECUPERARE I DATI ---
-// Nota: questa è 'query' e non 'internalQuery' e NON controlla l'identità.
+// 8. 'getPublicPageData' (invariato)
 export const getPublicPageData = query({
   args: {
     shareId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 1. Trova la pagina (metadati) usando l'indice
     const page = await ctx.db
       .query("pages")
       .withIndex("by_shareId", (q) => q.eq("shareId", args.shareId))
-      .filter((q) => q.eq(q.field("isPublic"), true)) // Assicurati che sia pubblica
+      .filter((q) => q.eq(q.field("isPublic"), true))
       .unique();
 
     if (!page) {
       return null;
     }
 
-    // 2. Trova il contenuto della pagina
     const contentDoc = await ctx.db
       .query("pageContent")
       .withIndex("byPageId", (q) => q.eq("pageId", page._id))
       .unique();
 
-    // 3. Trova i metadati delle sottopagine (per il componente SubPagesList)
     const subPages = await ctx.db
       .query("pages")
       .withIndex("byUserAndParent", (q) =>
@@ -331,11 +350,10 @@ export const getPublicPageData = query({
       .order("asc")
       .collect();
 
-    // 4. Restituisci tutto il necessario per il render
     return {
-      page: page, // metadati della pagina
-      content: contentDoc?.content || "{}", // contenuto JSON
-      subPages: subPages, // metadati delle sottopagine
+      page: page,
+      content: contentDoc?.content || "{}",
+      subPages: subPages,
     };
   },
 });

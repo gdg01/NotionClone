@@ -743,3 +743,51 @@
         Rompe parole molto lunghe se non entrano */
   word-break: break-word; 
 }
+
+
+/* Aggiungi questo alla fine del tuo file index.css */
+
+.sidebar-section-header {
+  font-size: 0.75rem; /* 12px */
+  font-weight: 600;
+  color: #9b9a97; /* notion-text-gray */
+  padding: 0.25rem 0.5rem; /* py-1 px-2 */
+  margin-top: 0.5rem; /* mt-2 */
+  text-transform: uppercase;
+}
+
+.dark .sidebar-section-header {
+  color: #8a8a8a; /* notion-text-gray-dark */
+}
+
+
+/* Aggiungi questo alla fine del tuo file index.css */
+
+/* Stile per l'elemento "fantasma" che stai trascinando */
+.drag-overlay {
+  background-color: #202020; /* Sfondo scuro per l'overlay */
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  opacity: 0.95;
+  z-index: 1000;
+}
+
+/* Stile per l'indicatore di rilascio (la linea blu) */
+/* (Questo potrebbe richiedere un po' di messa a punto) */
+.drop-indicator {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background-color: #3b82f6; /* blu-500 */
+  border-radius: 1px;
+  z-index: 1;
+}
+
+.drop-indicator-top {
+  top: -1px;
+}
+
+.drop-indicator-bottom {
+  bottom: -1px;
+}
