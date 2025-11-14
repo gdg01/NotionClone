@@ -18,17 +18,15 @@ export default defineSchema({
     properties: v.optional(v.any()),
     isPublic: v.optional(v.boolean()),
     shareId: v.optional(v.string()),
-        order: v.optional(v.number()), 
+    order: v.optional(v.number()), 
+    dbViewId: v.optional(v.string()),
 
   })
     .index("byUser", ["userId"])
     .index("byUserAndParent", ["userId", "parentId"])
-    // --- NUOVO INDICE ---
-    // Ottimizza la query per 'getSidebar' per separare 
-    // velocemente le pagine fissate da quelle private.
     .index("byUserParentPinned", ["userId", "parentId", "isPinned"])
-    // --- FINE NUOVO INDICE ---
-    .index("by_shareId", ["shareId"]),
+    .index("by_shareId", ["shareId"])
+    .index("by_dbViewId", ["userId", "dbViewId"]),
 
   // --- Tabella Contenuto Principale ---
   pageContent: defineTable({

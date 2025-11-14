@@ -1,4 +1,4 @@
-// components/Editor.tsx (Aggiornato con prop isReadOnly e fix per context)
+// components/Editor.tsx (Corretto - Rimosso 'databaseView' da UniqueID)
 
 import React, {
   useState,
@@ -64,8 +64,9 @@ import { BacklinksList, EnrichedBacklink } from './BacklinksList';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { getTagClasses, TAG_COLORS } from '../lib/TG';
-import { Doc } from '../convex/_generated/dataModel';
+import { Doc, Id } from '../convex/_generated/dataModel';
 import { useMobileDrawerData } from '../context/MobileDrawerContext';
+import { DatabaseView } from '../extensions/DatabaseView';
 
 // --- TagInput (Invariato) ---
 interface TagInputProps {
@@ -241,7 +242,8 @@ const TagInput: React.FC<TagInputProps> = ({ pageTags, onUpdatePageTags }) => {
 };
 // --- Fine TagInput ---
 
-// ... (definizioni Nodi: PageLink, BlockLink, SubPagesList, Column, Columns, Callout, CustomCodeBlock - Invariate) ...
+
+// --- Nodi Tiptap (Invariati) ---
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     callout: {
@@ -417,11 +419,73 @@ const CustomCodeBlock = CodeBlockLowlight.extend({
     return ReactNodeViewRenderer(CodeBlockComponent);
   },
 });
+// --- Fine Nodi Tiptap ---
 
-// ... (SlashCommandMenu - Invariato) ...
+
+// --- SlashCommandMenu (Invariato) ---
+const SlashCommandMenu = forwardRef((props: any, ref) => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const selectItem = (index: number) => {
+    if (props.items[index]) {
+      props.command(props.items[index]);
+    }
+  };
+  useEffect(() => setSelectedIndex(0), [props.items]);
+  useImperativeHandle(ref, () => ({
+    onKeyDown: ({ event }: { event: KeyboardEvent }) => {
+      if (event.key === 'ArrowUp') {
+        setSelectedIndex(
+          (selectedIndex + props.items.length - 1) % props.items.length
+        );
+        return true;
+      }
+      if (event.key === 'ArrowDown') {
+        setSelectedIndex((selectedIndex + 1) % props.items.length);
+        return true;
+      }
+      if (event.key === 'Enter') {
+        selectItem(selectedIndex);
+        return true;
+      }
+      return false;
+    },
+  }));
+  if (props.items.length === 0) return null;
+  return (
+    <div className="bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark w-72 p-1 text-notion-text dark:text-notion-text-dark">
+      <div className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark px-2 py-1">
+        BLOCKS
+      </div>
+      {props.items.map((item: any, index: number) => (
+        <button
+          key={item.title}
+          className={`flex items-center w-full text-left px-2 py-1.5 rounded ${
+            index === selectedIndex
+              ? 'bg-notion-hover dark:bg-notion-hover-dark'
+              : ''
+          }`}
+          onClick={() => selectItem(index)}
+        >
+          <div className="w-8 h-8 flex items-center justify-center text-lg border border-notion-border dark:border-notion-border-dark rounded mr-3">
+            {item.icon}
+          </div>
+          <div>
+            <p className="font-medium">{item.title}</p>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+});
+// --- Fine SlashCommandMenu ---
+
+
+// --- commandItems (Invariato dalla nostra ultima modifica) ---
 const commandItems = ({
   editor,
   onCreateSubPage,
+  createPage,
+  currentPageId,
 }: {
   editor: TiptapEditor;
   onCreateSubPage: (options?: {
@@ -429,6 +493,8 @@ const commandItems = ({
     insertLink?: boolean;
     title?: string;
   }) => Promise<Page | undefined>;
+  createPage: (args: { title: string, parentPage?: Id<'pages'> }) => Promise<Id<'pages'> | undefined>;
+  currentPageId: string | null;
 }) => [
   {
     title: 'Text',
@@ -509,61 +575,21 @@ const commandItems = ({
     command: () => editor.chain().focus().insertContent({ type: 'subPagesList' }).run(),
     aliases: ['subpages', 'children', 'listpages'],
   },
-];
-const SlashCommandMenu = forwardRef((props: any, ref) => {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const selectItem = (index: number) => {
-    if (props.items[index]) {
-      props.command(props.items[index]);
-    }
-  };
-  useEffect(() => setSelectedIndex(0), [props.items]);
-  useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }: { event: KeyboardEvent }) => {
-      if (event.key === 'ArrowUp') {
-        setSelectedIndex(
-          (selectedIndex + props.items.length - 1) % props.items.length
-        );
-        return true;
-      }
-      if (event.key === 'ArrowDown') {
-        setSelectedIndex((selectedIndex + 1) % props.items.length);
-        return true;
-      }
-      if (event.key === 'Enter') {
-        selectItem(selectedIndex);
-        return true;
-      }
-      return false;
+  {
+    title: 'Database View',
+    icon: '🛢️',
+    command: () => {
+      if (!currentPageId) return Promise.resolve(undefined);
+      return createPage({ title: "Senza titolo", parentPage: currentPageId as Id<'pages'> });
     },
-  }));
-  if (props.items.length === 0) return null;
-  return (
-    <div className="bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark w-72 p-1 text-notion-text dark:text-notion-text-dark">
-      <div className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark px-2 py-1">
-        BLOCKS
-      </div>
-      {props.items.map((item: any, index: number) => (
-        <button
-          key={item.title}
-          className={`flex items-center w-full text-left px-2 py-1.5 rounded ${
-            index === selectedIndex
-              ? 'bg-notion-hover dark:bg-notion-hover-dark'
-              : ''
-          }`}
-          onClick={() => selectItem(index)}
-        >
-          <div className="w-8 h-8 flex items-center justify-center text-lg border border-notion-border dark:border-notion-border-dark rounded mr-3">
-            {item.icon}
-          </div>
-          <div>
-            <p className="font-medium">{item.title}</p>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-});
+    isDbViewCommand: true, 
+    aliases: ['database', 'tableview', 'db'],
+  },
+];
+// --- Fine commandItems ---
+
+
+// --- Estensione SlashCommand (Invariata dalla nostra ultima modifica) ---
 const SlashCommand = Extension.create({
   name: 'slash-command',
   addOptions() {
@@ -572,6 +598,7 @@ const SlashCommand = Extension.create({
       onSelectPage: () => {},
       onUpdatePage: async (pageId: string, updates: any) => {},
       currentPageId: null as string | null,
+      createPage: async (args: { title: string, parentPage?: Id<'pages'> }) => undefined as Id<'pages'> | undefined,
     };
   },
   addProseMirrorPlugins() {
@@ -582,6 +609,7 @@ const SlashCommand = Extension.create({
         command: async ({ editor, range, props }) => {
           const insertionPos = range.from;
           editor.chain().focus().deleteRange(range).run();
+
           if (props.isPageCommand) {
             const newPage = await props.command();
             if (newPage && newPage._id) {
@@ -613,9 +641,22 @@ const SlashCommand = Extension.create({
                   return;
                 }
               }
-              this.options.onSelectPage(newPage._id);
             }
-          } else {
+          } 
+          
+          else if (props.isDbViewCommand) {
+            const newDbViewPageId = await props.command();
+            if (newDbViewPageId) {
+              editor.chain().focus().insertContentAt(insertionPos, {
+                type: 'databaseView',
+                attrs: { 
+                  id: newDbViewPageId,
+                }
+              }).run();
+            }
+          }
+          
+          else {
             props.command();
           }
         },
@@ -623,6 +664,8 @@ const SlashCommand = Extension.create({
           commandItems({
             editor: this.editor,
             onCreateSubPage: this.options.onCreateSubPage,
+            createPage: this.options.createPage,
+            currentPageId: this.options.currentPageId,
           })
             .filter(
               (item) =>
@@ -671,8 +714,10 @@ const SlashCommand = Extension.create({
     ];
   },
 });
+// --- Fine Estensione SlashCommand ---
 
-// ... (Estensioni DnD e ColumnCleanup - Invariate) ...
+
+// --- Estensioni DnD e ColumnCleanup (Invariate) ---
 const columnDragPluginKey = new PluginKey('columnDrag');
 const getDragTarget = (view: any, event: DragEvent) => {
   const targetElement = document.elementFromPoint(event.clientX, event.clientY);
@@ -699,7 +744,7 @@ const getDragTarget = (view: any, event: DragEvent) => {
   const nodeStartPos = $pos.before(1);
   const rect = (nodeView as HTMLElement).getBoundingClientRect();
   const xPos = event.clientX - rect.left;
-  const triggerWidth = 40; // 40px fissi
+  const triggerWidth = 40;
   let side = null;
   if (xPos < triggerWidth) {
     side = 'left';
@@ -919,9 +964,10 @@ const ColumnCleanup = Extension.create({
     ];
   },
 });
+// --- Fine Estensioni DnD ---
 
 
-// --- MODIFICA 1: Aggiorna Interfaccia Props ---
+// --- Interfaccia Props Editor (Invariata) ---
 interface EditorProps {
   page: Page;
   initialContent: any;
@@ -951,11 +997,8 @@ interface EditorProps {
   onSaveNow: () => Promise<void>;
   isSplitView: boolean;
   isSidebarOpen: boolean;
-
-  // --- NUOVA PROP ---
   isReadOnly?: boolean;
 }
-// --- FINE MODIFICA 1 ---
 
 interface Heading {
   id: string;
@@ -967,6 +1010,7 @@ export type EditorHandle = {
   getEditor: () => TiptapEditor | null;
 };
 
+// --- Componente Editor (Modificato) ---
 export const Editor = forwardRef<EditorHandle, EditorProps>(({
   page,
   initialContent,
@@ -987,7 +1031,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   onSaveNow,
   isSplitView,
   isSidebarOpen,
-  // --- MODIFICA 2: Ricevi la prop e imposta un default ---
   isReadOnly = false,
 }, ref) => {
 
@@ -997,13 +1040,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  // --- INIZIO CORREZIONE PER ERRORE CONTEXT ---
-  // Chiama il context SOLO se non siamo in modalità 'sola lettura' (come nella pagina pubblica).
-  // Altrimenti, fornisci una funzione fittizia (dummy) che non fa nulla.
+  // --- MODIFICA CHIAVE: Importa la mutazione 'create' ---
+  const createPage = useMutation(api.pages.create);
+
   const { setMobileData } = !isReadOnly
     ? useMobileDrawerData()
     : { setMobileData: () => { } };
-  // --- FINE CORREZIONE ---
 
   useEffect(() => {
     if (titleRef.current) {
@@ -1032,7 +1074,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
 
 
   useEffect(() => {
-    // Invia i dati al context per essere letti dalla BreadcrumbNav
     setMobileData({
       headings: headings,
       backlinks: (backlinks as EnrichedBacklink[]) || [],
@@ -1085,10 +1126,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
 
   const editor = useEditor(
     {
-      // --- MODIFICA 3: Imposta la modalità di modifica ---
       editable: !isReadOnly,
-      // --- FINE MODIFICA 3 ---
-
       extensions: [
         StarterKit.configure({
           paragraph: false,
@@ -1096,28 +1134,31 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           codeBlock: false,
           dropcursor: false,
           markdown: {
-            html: true,     // Permette a Tiptap di convertire MD in HTML
-            paste: true,    // Abilita il parsing del MD quando si incolla
-            linkify: false, // Lascia la gestione dei link a PageLink
+            html: true,
+            paste: true,
+            linkify: false,
           }
+          
         }),
         ColumnDragHandler,
         Dropcursor.configure({ color: '#60A5FA', width: 2 }),
         Paragraph.extend({
-          draggable: !isReadOnly, // <-- MODIFICA
+          draggable: !isReadOnly,
           addNodeView() {
             return ReactNodeViewRenderer(BlockWrapperComponent);
           },
         }),
         Heading.extend({
-          draggable: !isReadOnly, // <-- MODIFICA
+          draggable: !isReadOnly,
           addNodeView() {
             return ReactNodeViewRenderer(BlockWrapperComponent);
           },
         }),
         CustomCodeBlock.extend({
-          draggable: !isReadOnly // <-- MODIFICA
+          draggable: !isReadOnly
         }).configure({ lowlight }),
+        
+        // --- MODIFICA CHIAVE: Rimuovi 'databaseView' da UniqueID ---
         UniqueID.configure({
           types: [
             'heading',
@@ -1131,11 +1172,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             'horizontalRule',
             'subPagesList',
             'table',
+            // 'databaseView' è stato rimosso da qui!
           ],
         }),
+        // --- FINE MODIFICA ---
+
         Table.configure({
           resizable: true,
-          draggable: !isReadOnly, // <-- MODIFICA
+          draggable: !isReadOnly,
         }),
         TableRow,
         TableCell,
@@ -1162,13 +1206,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           blockPreviews: blockPreviewsMap,
           onOpenInSplitView: onOpenInSplitView,
         }),
-
-        // --- MODIFICA 4: Disabilita comandi e placeholder se read-only ---
+        DatabaseView.configure({
+          onSelectPage: onSelectPage,
+          onOpenInSplitView: onOpenInSplitView,
+        }),
         !isReadOnly && SlashCommand.configure({
           onCreateSubPage,
           onSelectPage,
           onUpdatePage: onUpdatePage,
           currentPageId: page._id,
+          createPage: createPage, // Passa la mutazione 'create'
         }),
         !isReadOnly && Placeholder.configure({
           emptyNodeClass: 'is-empty',
@@ -1182,8 +1229,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             return null;
           },
         }),
-        // --- FINE MODIFICA 4 ---
-      ].filter(Boolean) as any, // Filtra i valori 'false'
+      ].filter(Boolean) as any,
 
       content: initialContent,
       onCreate: ({ editor }) => {
@@ -1191,7 +1237,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
       },
 
       onUpdate: ({ editor }) => {
-        if (isReadOnly) return; // Non fare nulla se in sola lettura
+        if (isReadOnly) return;
         onContentChange(editor.getJSON());
         const newHeadings: Heading[] = [];
         editor.state.doc.forEach((node) => {
@@ -1212,7 +1258,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl focus:outline-none dark:prose-invert max-w-none ',
         },
         handlePaste: (view, event, slice) => {
-          if (isReadOnly) return true; // Impedisci il paste
+          if (isReadOnly) return true;
           const text = event.clipboardData?.getData('text/plain') || '';
           const blockLinkRegex = /#([a-zA-Z0-9-]+):([a-zA-Z0-9-]+)$/;
           const match = text.trim().match(blockLinkRegex);
@@ -1242,7 +1288,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         },
       },
     },
-    [page._id, getPageById, isReadOnly] // <-- MODIFICA: Aggiungi isReadOnly alle dipendenze
+    [page._id, getPageById, isReadOnly, createPage] 
   );
 
   const handleCreatePageFromSelection = useCallback(async () => {
@@ -1332,6 +1378,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         }
         if (extension.name === 'slash-command') {
           extension.options.onCreateSubPage = onCreateSubPage;
+          extension.options.createPage = createPage;
+          extension.options.currentPageId = page._id;
         }
       });
     }
@@ -1344,14 +1392,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
     editor,
     onSelectPage,
     onCreateSubPage,
+    createPage,
   ]);
 
+  // --- Render (Invariato) ---
   return (
     <div
       ref={scrollContainerRef}
       className="h-full overflow-y-auto pt-12 scrollbar-none"
     >
-      {/* --- MODIFICA 5: Nascondi TOC se read-only --- */}
       {!isReadOnly && (
         <TableOfContents
           headings={headings}
@@ -1360,7 +1409,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           mode="desktop"
         />
       )}
-      {/* --- FINE MODIFICA 5 --- */}
 
       {backlinks && backlinks.length > 0 && (
         <BacklinksList
@@ -1381,7 +1429,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
               alt="Cover"
               className="w-full h-full object-cover"
             />
-            {/* --- MODIFICA 6: Nascondi pulsante "Remove" --- */}
             {!isReadOnly && (
               <button
                 onClick={() => onUpdatePage(page._id, { coverImage: undefined })}
@@ -1390,13 +1437,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                 Remove Cover
               </button>
             )}
-            {/* --- FINE MODIFICA 6 --- */}
           </div>
         )}
 
-        <div className="relative group"> {/* <-- MODIFICA QUI */}
+        <div className="relative group">
           <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}>
-            {/* --- MODIFICA 7: Disabilita picker emoji --- */}
             <button
               onClick={() => !isReadOnly && setIsPickerOpen(true)}
               disabled={isReadOnly}
@@ -1420,10 +1465,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                 />
               </div>
             )}
-            {/* --- FINE MODIFICA 7 --- */}
           </div>
 
-          {/* --- MODIFICA 8: Nascondi "Add Cover" --- */}
           {!page.coverImage && !isReadOnly && (
             <button
               onClick={() => onUpdatePage(page._id, {
@@ -1434,9 +1477,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
               Add Cover
             </button>
           )}
-          {/* --- FINE MODIFICA 8 --- */}
 
-          {/* --- MODIFICA 9: Disabilita input titolo --- */}
           <textarea
             ref={titleRef}
             rows={1}
@@ -1459,11 +1500,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             }}
             placeholder="Untitled"
             className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4 resize-none overflow-hidden"
-            disabled={isReadOnly} // <-- Aggiunto disabled
+            disabled={isReadOnly}
           />
 
           <>
-            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"> {/* <-- MODIFICA QUI */}
+            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
 
 
               <div className="flex items-start">
@@ -1501,13 +1542,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
               </BubbleMenu>
             )}
           </>
-          {/* --- FINE MODIFICA 9 --- */}
         </div>
 
 
         {!isReadOnly && (
           <>
-            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"> {/* <-- MODIFICA QUI */}
+            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
   
              
               {page.properties && Object.keys(page.properties).length > 0 && (
@@ -1537,7 +1577,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             )}
           </>
         )}
-        {/* --- FINE MODIFICA 10 --- */}
 
         <EditorContent editor={editor} />
 

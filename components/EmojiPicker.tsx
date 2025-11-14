@@ -1,18 +1,17 @@
 import React, { useEffect, useRef } from 'react';
+import Picker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
+  // isDarkMode: boolean; // Ricorda di gestire questo
 }
 
-const emojis = [
-  '😀', '👋', '👍', '❤️', '🎉', '💡', '🔥', '🚀', '⭐', '🔧',
-  '📚', '📄', '📁', '💼', '📈', '📌', '✅', '❌', '❓', '❗',
-  '💻', '📱', '🤖', '🧠', '⚙️', '🌍', '🏠', '🏢', '🏗️', 'T',
-  // Aggiungi altri emoji se vuoi
-];
-
-export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onClose }) => {
+export const EmojiPicker: React.FC<EmojiPickerProps> = ({
+  onSelect,
+  onClose,
+  // isDarkMode = true 
+}) => {
   const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,24 +27,29 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onClose }) =
     };
   }, [onClose]);
 
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    onSelect(emojiData.emoji);
+    // onClose(); 
+  };
+
+  const pickerTheme = Theme.AUTO; // Gestisci questo dinamicamente
+  
   return (
     <div
       ref={pickerRef}
-      className="absolute z-20 w-48 bg-notion-sidebar dark:bg-notion-sidebar-dark border border-notion-border dark:border-notion-border-dark rounded-lg shadow-xl p-2"
-      style={{ top: '100%', left: 0, marginTop: '4px' }} // Position below the trigger button
+      className="absolute z-20 w-72" // Controlla la larghezza
+      style={{ top: '100%', left: 0, marginTop: '4px' }}
     >
-      <div className="grid grid-cols-5 gap-1">
-        {emojis.map((emoji) => (
-          <button
-            key={emoji}
-            onClick={() => onSelect(emoji)}
-            className="text-xl rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark transition-colors aspect-square flex items-center justify-center"
-            aria-label={`Select emoji ${emoji}`}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
+      <Picker
+        onEmojiClick={handleEmojiClick}
+        theme={pickerTheme}
+        width="100%"
+        height={350} // Aggiusta l'altezza se necessario
+
+        // Rimuove il banner "What's Your Mood?"
+        previewConfig={{ showPreview: false }}
+
+      />
     </div>
   );
 };

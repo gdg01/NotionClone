@@ -10,7 +10,40 @@
     <link rel="manifest" href="/manifest.webmanifest">
 
     <title>Notion Clone</title>
-
+    
+    <script>
+      (function() {
+        try {
+          const theme = localStorage.getItem('notion-clone-theme') || 'dark';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {
+          // Ignora eventuali errori (es. in modalità navigazione privata)
+        }
+      })();
+    </script>
+    <style>
+      /* Imposta qui i colori di sfondo ESATTI dal tuo file tailwind.config.js
+        per 'notion-bg' e 'notion-bg-dark'.
+        
+        Presumo che 'notion-bg-dark' sia '#191919' (dal tuo meta tag)
+        e 'notion-bg' (light) sia '#FFFFFF' (bianco).
+        
+        Modifica questi valori se i tuoi colori sono diversi!
+      */
+      html {
+        /* Colore di sfondo per il light mode (base) */
+        background-color: #FFFFFF;
+      }
+      
+      html.dark {
+        /* Colore di sfondo per il dark mode */
+        background-color: #191919;
+      }
+    </style>
     <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css"/>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>

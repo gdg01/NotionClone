@@ -122,7 +122,11 @@ export const getContent = query({
 
 // 4. 'create' (MODIFICATO per impostare 'isPinned' a false di default)
 export const create = mutation({
-  args: { title: v.string(), parentPage: v.optional(v.id("pages")) },
+  args: {
+    title: v.string(),
+    parentPage: v.optional(v.id("pages")),
+    dbViewId: v.optional(v.string()), // <-- 1. AGGIUNGI QUESTO ARGOMENTO
+  },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) { throw new Error("Not authenticated"); }
@@ -149,8 +153,9 @@ export const create = mutation({
       isArchived: false,
       coverImage: undefined,
       tags: tagsToInherit,
-      isPinned: false, // <-- Imposta a 'false' alla creazione
-      properties: {},
+      isPinned: false, 
+      properties: {}, // Inizia con proprietà vuote
+      dbViewId: args.dbViewId, // <-- 2. SALVA L'ID DELLA VISTA
     });
 
     await ctx.db.insert("pageContent", {
@@ -355,5 +360,68 @@ export const getPublicPageData = query({
       content: contentDoc?.content || "{}",
       subPages: subPages,
     };
+  },
+});
+
+// In: convex/pages.ts
+// ... (alla fine del file, dopo le altre query)
+
+/**
+ * Recupera tutte le pagine figlie per una vista Database.
+ * Questo è simile a getSidebar, ma non è diviso in 'pinned'/'private'
+ * e restituisce l'elenco completo delle pagine per la tabella.
+ */
+export const getDatabasePages = query({
+  args: {
+    // Ora cerchiamo per ID del blocco Tiptap, non per parentId
+    dbViewId: v.string(), 
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+    const userId = identity.subject;
+
+    // Trova solo le pagine create da questa specifica vista
+    const pages = await ctx.db
+      .query("pages")
+      .withIndex("by_dbViewId", (q) => // <-- USA IL NUOVO INDICE
+        q.eq("userId", userId).eq("dbViewId", args.dbViewId)
+      )
+      .filter((q) => q.eq(q.field("isArchived"), false))
+      .order("desc") // O 'asc' o per 'order', come preferisci
+      .collect();
+
+    return pages;
+  },
+});
+
+// In convex/pages.ts, aggiungi:
+export const createDbViewPage = mutation({
+  args: { parentPage: v.id("pages") }, // La pagina dove il blocco viene creato
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const newPageId = await ctx.db.insert("pages", {
+      title: "Senza titolo", // Titolo di default, come ora
+      userId: identity.subject,
+      icon: "", // Icona di default
+      parentId: args.parentPage,
+      isArchived: false,
+      isPinned: false, 
+    });
+
+    return newPageId; // Restituisce il VERO ID della pagina-tabella
+  },
+});
+
+export const getById = query({
+  args: { pageId: v.id("pages") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return await ctx.db.get(args.pageId);
   },
 });
