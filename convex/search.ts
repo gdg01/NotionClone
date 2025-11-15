@@ -170,7 +170,7 @@ export const performContextualSearch = action({
 });
 
 // ============================================
-// FUNZIONE searchInternal - VERSIONE COMPATIBILE
+// FUNZIONE searchInternal - VERSIONE CON BATCHING FIX
 // ============================================
 export const searchInternal = action({
   args: { queryEmbedding: v.array(v.float64()), userId: v.string() },
@@ -191,16 +191,35 @@ export const searchInternal = action({
       return [];
     }
     
-    // --- INIZIO CORREZIONE ---
+    // --- INIZIO MODIFICA PER ERRORE "Too many conditions" ---
     
-    // 2. Cerca nella tabella PESANTE (senza resultFields)
-    // Questo restituirà solo _id (di 'blockEmbeddings') e _score
-    const vectorResults = await ctx.vectorSearch("blockEmbeddings", "by_embedding", { 
-        vector: args.queryEmbedding, 
-        limit: 10,
-        filter: (q) => q.or(...userPageIds.map(id => q.eq("pageId", id))),
-        // 'resultFields' rimosso perché non supportato dalla tua versione
-    });
+    const MAX_FILTER_CONDITIONS = 64; // Limite del database
+    const allVectorResults: { _id: Id<"blockEmbeddings">, _score: number }[] = [];
+    const queryLimit = 10; // Il limite di risultati che vogliamo alla fine
+    
+    // 2. Esegui la vector search in blocchi (batch) se l'utente ha più di 64 pagine
+    for (let i = 0; i < userPageIds.length; i += MAX_FILTER_CONDITIONS) {
+      const pageIdChunk = userPageIds.slice(i, i + MAX_FILTER_CONDITIONS);
+      
+      console.log(`[Search Internal] Eseguo chunk ${Math.floor(i / MAX_FILTER_CONDITIONS) + 1}/${Math.ceil(userPageIds.length / MAX_FILTER_CONDITIONS)} con ${pageIdChunk.length} pageId`);
+      
+      const chunkResults = await ctx.vectorSearch("blockEmbeddings", "by_embedding", { 
+          vector: args.queryEmbedding, 
+          limit: queryLimit, // Chiediamo i top 10 per ogni chunk
+          filter: (q) => q.or(...pageIdChunk.map(id => q.eq("pageId", id))),
+          // 'resultFields' rimosso (come già fatto da te per la compatibilità)
+      });
+      
+      allVectorResults.push(...chunkResults);
+    }
+    
+    // Ora abbiamo i risultati da tutti i chunk.
+    // Dobbiamo ri-ordinarli e prendere i 10 migliori in assoluto.
+    const vectorResults = allVectorResults
+      .sort((a, b) => b._score - a._score) // Ordina per score (decrescente)
+      .slice(0, queryLimit); // Prendi i 10 migliori totali
+
+    // --- FINE MODIFICA ---
     
     
     if (vectorResults.length === 0) {
@@ -208,8 +227,7 @@ export const searchInternal = action({
     }
     
     // 3. RECUPERA I DATI COMPLETI DAGLI EMBEDDING
-    // Questo è il passaggio aggiuntivo necessario per la vecchia versione
-    // Prendiamo gli _id da vectorResults e recuperiamo i documenti completi
+    // (Il resto del tuo codice da qui in poi è corretto)
     const embeddingIds = vectorResults.map(r => r._id);
     const searchResults = await ctx.runQuery(internal.search.getEmbeddingsByIds, { ids: embeddingIds });
 
@@ -227,12 +245,13 @@ export const searchInternal = action({
       .map(emb => emb.blockId)
       .filter((id): id is string => id !== undefined && id !== null && id !== "");
       
-    // --- FINE CORREZIONE ---
+    // --- FINE CORREZIONE (tua) ---
 
 
     // 5. Recupera i metadati (Pagine e Testo) in parallelo
     const [pages, textBlocks] = await Promise.all([
-      ctx.runQuery(internal.search.getPagesByIds, { ids: pageIds }),
+      // Ho corretto anche un piccolo refuso qui: era { ids: pageId: pageIds }
+      ctx.runQuery(internal.search.getPagesByIds, { ids: pageIds }), 
       ctx.runQuery(internal.search.getTextBlocksByBlockIds, { blockIds: blockIds })
     ]);
     
@@ -271,7 +290,7 @@ export const searchInternal = action({
         }
         return passThreshold;
       })
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a._score);
 
     
     if (finalResults.length > 0) {

@@ -1,4 +1,4 @@
-// File: convex/schema.ts 
+// File: convex/schema.ts
 // (SOSTITUZIONE COMPLETA - Schema Corretto a 2 Tabelle)
 
 import { defineSchema, defineTable } from "convex/server";
@@ -18,9 +18,8 @@ export default defineSchema({
     properties: v.optional(v.any()),
     isPublic: v.optional(v.boolean()),
     shareId: v.optional(v.string()),
-    order: v.optional(v.number()), 
+    order: v.optional(v.number()),
     dbViewId: v.optional(v.string()),
-
   })
     .index("byUser", ["userId"])
     .index("byUserAndParent", ["userId", "parentId"])
@@ -57,12 +56,12 @@ export default defineSchema({
 
   // 2. Tabella "blockEmbeddings" (PESANTE)
   // Contiene solo i vettori per la ricerca AI.
-blockEmbeddings: defineTable({
-    pageId: v.id("pages"), 
-    blockId: v.string(), 
+  blockEmbeddings: defineTable({
+    pageId: v.id("pages"),
+    blockId: v.string(),
     embedding: v.array(v.float64()),
   })
-    .index("by_pageId_blockId", ["pageId", "blockId"]) 
+    .index("by_pageId_blockId", ["pageId", "blockId"])
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
       dimensions: 768,
@@ -74,14 +73,39 @@ blockEmbeddings: defineTable({
   // --- FINE OTTIMIZZAZIONE BANDA ---
 
   // --- Tabella Coda di Indicizzazione ---
-embeddingQueue: defineTable({
-  pageId: v.id("pages"),
-  contentJson: v.string(),
-  processing: v.optional(v.boolean()),  // <-- AGGIUNGI QUESTA RIGA
-  processingStartedAt: v.optional(v.number()), // <-- OPZIONALE: per timeout
-}).index("by_pageId", ["pageId"]),
+  embeddingQueue: defineTable({
+    pageId: v.id("pages"),
+    contentJson: v.string(),
+    processing: v.optional(v.boolean()), // <-- AGGIUNGI QUESTA RIGA
+    processingStartedAt: v.optional(v.number()), // <-- OPZIONALE: per timeout
+  }).index("by_pageId", ["pageId"]),
 
+  flashcards: defineTable({
+    userId: v.string(),
+    sourcePageId: v.id("pages"), // La "Pagina" a cui appartiene (il Mazzo)
+    sourceBlockId: v.optional(v.string()), // Il blocco che l'ha generata (per contesto)
 
+    front: v.string(), // Testo Domanda
+    back: v.string(), // Testo Risposta
+
+    // Campi per Spaced Repetition (SRS)
+    state: v.union(
+      v.literal("new"),
+      v.literal("learning"),
+      v.literal("review")
+    ),
+    dueAt: v.number(), // Timestamp (ms) di quando la card è "scaduta"
+    interval: v.number(), // Intervallo in giorni
+    easeFactor: v.number(), // Un moltiplicatore, es. 2.5
+
+    // Raggruppamento aggiuntivo
+    tags: v.optional(v.array(v.string())),
+  })
+    .index("byUser", ["userId"])
+    // Indice CRITICO per la revisione: trova le carte scadute per un mazzo
+    .index("byDeckAndDue", ["userId", "sourcePageId", "dueAt"])
+    // Indice CRITICO per l'upsert da sintassi
+    .index("byBlock", ["userId", "sourceBlockId"]),
   // --- Tabella Backlinks ---
   backlinks: defineTable({
     sourcePageId: v.id("pages"),

@@ -1,7 +1,7 @@
 // convex/ai.ts (SOSTITUZIONE COMPLETA)
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-
+import { api } from "./_generated/api";
 // Tipo per i messaggi (corrisponde a quello della UI)
 export type Message = {
   role: "user" | "assistant" | "system";
@@ -11,7 +11,7 @@ export type Message = {
 // --- MODIFICA: Definiamo i modelli in ordine di preferenza ---
 // Dal più performante (e costoso) al meno performante (più economico).
 const MODELS_IN_ORDER = [
-  "llama-3.3-70b-versatile", // 1. Il migliore (prova questo per primo)
+  "openai/gpt-oss-120b", // 1. Il migliore (prova questo per primo)
   "llama-3.1-8b-instant",   // 2. Il fallback (veloce ed economico)
   // Puoi aggiungere altri modelli Groq qui se necessario
 ];
@@ -97,3 +97,54 @@ export const askGroq = action({
     throw new Error("Tutti i modelli AI di fallback hanno fallito o non sono disponibili.");
   },
 });
+
+
+// --- INIZIO SEZIONE MODIFICATA ---
+
+/**
+ * Azione specifica per generare una flashcard da un testo.
+ */
+export const generateFlashcard = action({
+  args: {
+    text: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ q: string; a: string }> => {
+    const prompt = `Sei un assistente esperto nella creazione di flashcard. 
+    Analizza il seguente testo e genera una singola, concisa coppia Domanda/Risposta.
+    La domanda deve testare la conoscenza chiave del testo. La risposta deve essere breve e diretta.
+    Fornisci la risposta *solo* in formato JSON, come questo:
+    {"q": "La tua domanda qui", "a": "La tua risposta qui"}
+    
+    Testo da analizzare:
+    "${args.text}"`;
+
+    try {
+      // Chiamiamo la nostra azione 'askGroq' esistente
+      const responseString = await ctx.runAction(api.ai.askGroq, {
+        history: [{ role: "user", content: prompt }],
+      });
+      
+      // Estrai il JSON dalla risposta (che potrebbe contenere ```json ... ```)
+      const jsonMatch = responseString.match(/\{.*\}/s);
+      if (!jsonMatch) {
+        throw new Error("L'AI non ha restituito un JSON valido.");
+      }
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      if (typeof parsed.q === 'string' && typeof parsed.a === 'string') {
+        return parsed;
+      } else {
+        throw new Error("JSON restituito dall'AI non ha i campi 'q' e 'a'.");
+      }
+    } catch (error) {
+      console.error("Errore generazione flashcard:", error);
+      // Fallback in caso di errore
+      return {
+        q: args.text.length > 50 ? args.text.substring(0, 50) + "..." : args.text,
+        a: "...",
+      };
+    }
+  },
+});
+// --- FINE SEZIONE MODIFICATA ---

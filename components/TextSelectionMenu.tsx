@@ -1,4 +1,4 @@
-// File: components/TextSelectionMenu.tsx (Modificato)
+// File: components/TextSelectionMenu.tsx (SOSTITUZIONE COMPLETA)
 
 import React from 'react';
 import type { Editor } from '@tiptap/core';
@@ -7,19 +7,22 @@ import {
   ItalicIcon, 
   InlineCodeIcon, 
   SparkleIcon,
-  NewPageIcon // <-- 1. Importa la nuova icona
+  NewPageIcon,
+  SparkleIcon as FlashcardIcon // <-- 1. Riusiamo SparkleIcon
 } from './icons'; 
 
 interface TextSelectionMenuProps {
   editor: Editor;
   onOpenAiPanel: () => void;
-  onCreatePageFromSelection: () => void; // <-- 2. Aggiungi la nuova prop
+  onCreatePageFromSelection: () => void;
+  onOpenFlashcardCreator: () => void; // <-- 2. Aggiungi la nuova prop
 }
 
 export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({ 
   editor, 
   onOpenAiPanel,
-  onCreatePageFromSelection // <-- 3. Ricevi la nuova prop
+  onCreatePageFromSelection,
+  onOpenFlashcardCreator // <-- 3. Ricevi la new prop
 }) => {
   
   const options = [
@@ -41,16 +44,22 @@ export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({
       command: () => editor.chain().focus().toggleCode().run(),
       isActive: editor.isActive('code'),
     },
-    // --- 4. AGGIUNGI IL NUOVO PULSANTE "CREA PAGINA" ---
     {
       name: 'Crea Pagina',
       icon: NewPageIcon,
-      command: () => onCreatePageFromSelection(), // Chiama la prop
+      command: () => onCreatePageFromSelection(),
+      isActive: false,
+    },
+    // --- 4. AGGIUNGI IL NUOVO PULSANTE "CREA FLASHCARD" ---
+    {
+      name: 'Crea Flashcard (AI)',
+      icon: FlashcardIcon,
+      command: () => onOpenFlashcardCreator(), // Chiama la nuova prop
       isActive: false,
     },
     // --- FINE NUOVO PULSANTE ---
     {
-      name: 'Ask AI', // Ho rinominato 'In-depth' in 'Ask AI' per coerenza
+      name: 'Ask AI',
       icon: SparkleIcon,
       command: () => onOpenAiPanel(),
       isActive: false,
@@ -58,7 +67,6 @@ export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({
   ];
 
   return (
-    // Il wrapper ora ha 'flex' per allineare i pulsanti
     <div className="flex items-center gap-0.5"> 
       {options.map((option) => (
         <button
@@ -75,7 +83,8 @@ export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({
           aria-label={option.name}
           title={option.name}
         >
-          <option.icon className="w-4 h-4" />
+          {/* 5. Aggiungi colore blu all'icona della flashcard */}
+          <option.icon className={`w-4 h-4 ${option.name === 'Crea Flashcard (AI)' ? 'text-blue-500' : ''}`} />
         </button>
       ))}
     </div>

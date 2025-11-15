@@ -61,12 +61,15 @@ import type { SaveStatus } from './BreadcrumbNav';
 import { TextSelectionMenu } from './TextSelectionMenu';
 import { BacklinksList, EnrichedBacklink } from './BacklinksList';
 //convex
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation, useQuery, useAction } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc, Id } from '../convex/_generated/dataModel';
 import { useMobileDrawerData } from '../context/MobileDrawerContext';
 import { DatabaseView } from '../extensions/DatabaseView';
+// --- INIZIO NUOVO IMPORT ---
+import { FlashcardSyntax } from '../extensions/FlashcardSyntax'; // Nuova estensione Tiptap
+// --- FINE NUOVO IMPORT ---
 
 // --- TagInput (Invariato) ---
 interface TagInputProps {
@@ -967,7 +970,7 @@ const ColumnCleanup = Extension.create({
 // --- Fine Estensioni DnD ---
 
 
-// --- Interfaccia Props Editor (Invariata) ---
+// --- Interfaccia Props Editor ---
 interface EditorProps {
   page: Page;
   initialContent: any;
@@ -992,7 +995,14 @@ interface EditorProps {
   scrollToBlockId: string | null;
   onDoneScrolling: () => void;
   onOpenInSplitView: (pageId: string, blockId?: string | null) => void;
-  onOpenAiPanel: () => void;
+  onOpenAiPanel: (initialText?: string) => void;
+  // --- NUOVA PROP ---
+  onOpenFlashcardCreator: (
+    generatedCard: { q: string, a: string },
+    pageId: string,
+    blockId: string | null
+  ) => void;
+  // --- FINE NUOVA PROP ---
   saveStatus: SaveStatus;
   onSaveNow: () => Promise<void>;
   isSplitView: boolean;
@@ -1027,6 +1037,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   onDoneScrolling,
   onOpenInSplitView,
   onOpenAiPanel,
+  onOpenFlashcardCreator, // <-- Ricevi la nuova prop
   saveStatus,
   onSaveNow,
   isSplitView,
@@ -1040,8 +1051,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  // --- MODIFICA CHIAVE: Importa la mutazione 'create' ---
+  // --- MODIFICA CHIAVE: Importa le mutazioni ---
   const createPage = useMutation(api.pages.create);
+  const generateFlashcardAI = useAction(api.ai.generateFlashcard);
+  const upsertFlashcardSyntax = useMutation(api.flashcards.upsertFromSyntax);
+  // --- FINE MODIFICA ---
 
   const { setMobileData } = !isReadOnly
     ? useMobileDrawerData()
@@ -1158,7 +1172,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           draggable: !isReadOnly
         }).configure({ lowlight }),
         
-        // --- MODIFICA CHIAVE: Rimuovi 'databaseView' da UniqueID ---
         UniqueID.configure({
           types: [
             'heading',
@@ -1172,10 +1185,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             'horizontalRule',
             'subPagesList',
             'table',
-            // 'databaseView' è stato rimosso da qui!
           ],
         }),
-        // --- FINE MODIFICA ---
 
         Table.configure({
           resizable: true,
@@ -1217,6 +1228,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           currentPageId: page._id,
           createPage: createPage, // Passa la mutazione 'create'
         }),
+        
+        // --- INIZIO NUOVA ESTENSIONE ---
+        !isReadOnly && FlashcardSyntax.configure({
+            pageId: page._id,
+            // Passiamo la mutazione Convex direttamente all'estensione
+            onUpsert: (data: { front: string, back: string, blockId: string }) => {
+                upsertFlashcardSyntax({
+                    front: data.front,
+                    back: data.back,
+                    sourcePageId: page._id,
+                    sourceBlockId: data.blockId,
+                });
+            }
+        }),
+        // --- FINE NUOVA ESTENSIONE ---
+        
         !isReadOnly && Placeholder.configure({
           emptyNodeClass: 'is-empty',
           placeholder: ({ editor, node, pos }) => {
@@ -1288,7 +1315,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         },
       },
     },
-    [page._id, getPageById, isReadOnly, createPage] 
+    [page._id, getPageById, isReadOnly, createPage, upsertFlashcardSyntax] // <-- Aggiunta dipendenza
   );
 
   const handleCreatePageFromSelection = useCallback(async () => {
@@ -1334,6 +1361,43 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
     }
 
   }, [editor, onCreateSubPage, onContentChange, onSaveNow, isReadOnly]);
+  
+  // --- NUOVA FUNZIONE: handleOpenFlashcardCreator ---
+  const handleOpenFlashcardCreatorWithAI = useCallback(async () => {
+    if (!editor || editor.state.selection.empty || isReadOnly) return;
+    
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to).trim();
+    if (selectedText.length < 10) {
+      alert("Seleziona almeno 10 caratteri per generare una flashcard.");
+      return;
+    }
+
+    // Trova il blockId più vicino
+    const $pos = editor.state.selection.$from;
+    let blockId = null;
+    for (let d = $pos.depth; d > 0; d--) {
+      const node = $pos.node(d);
+      if (node.attrs.id) {
+        blockId = node.attrs.id;
+        break;
+      }
+    }
+    
+    try {
+      // 1. Chiama l'azione AI
+      const card = await generateFlashcardAI({ text: selectedText });
+      
+      // 2. Chiama la prop di App.tsx per aprire l'AiSidebar in modalità "Flashcard"
+      onOpenFlashcardCreator(card, page._id, blockId);
+      
+    } catch (e) {
+      console.error("Errore generazione flashcard AI:", e);
+      alert("Impossibile generare la flashcard.");
+    }
+    
+  }, [editor, isReadOnly, generateFlashcardAI, onOpenFlashcardCreator, page._id]);
+  // --- FINE NUOVA FUNZIONE ---
 
   useImperativeHandle(ref, () => ({
     getEditor: () => editor,
@@ -1381,6 +1445,19 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           extension.options.createPage = createPage;
           extension.options.currentPageId = page._id;
         }
+        // --- NUOVA CONFIGURAZIONE ---
+        if (extension.name === 'flashcardSyntax') {
+          extension.options.pageId = page._id;
+          extension.options.onUpsert = (data: { front: string, back: string, blockId: string }) => {
+             upsertFlashcardSyntax({
+                front: data.front,
+                back: data.back,
+                sourcePageId: page._id,
+                sourceBlockId: data.blockId,
+            });
+          };
+        }
+        // --- FINE NUOVA CONFIGURAZIONE ---
       });
     }
   }, [
@@ -1393,6 +1470,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
     onSelectPage,
     onCreateSubPage,
     createPage,
+    upsertFlashcardSyntax // Aggiunta dipendenza
   ]);
 
   // --- Render (Invariato) ---
@@ -1515,17 +1593,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                   />
                 </div>
               </div>
-
-              {/*{page.properties && Object.keys(page.properties).length > 0 && (
-                <>
-                  {Object.entries(page.properties).map(([key, value]) => (
-                    <div key={key} className="flex items-center text-sm">
-                      <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark capitalize">{key}</span>
-                      <span className="text-notion-text dark:text-notion-text-dark">{String(value)}</span>
-                    </div>
-                  ))}
-                </>
-              )}*/}
             </div>
 
             {editor && (
@@ -1536,8 +1603,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
               >
                 <TextSelectionMenu
                   editor={editor}
-                  onOpenAiPanel={onOpenAiPanel}
+                  onOpenAiPanel={() => onOpenAiPanel()}
                   onCreatePageFromSelection={handleCreatePageFromSelection}
+                  onOpenFlashcardCreator={handleOpenFlashcardCreatorWithAI}
                 />
               </BubbleMenu>
             )}
@@ -1550,16 +1618,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             <div className="mb-6 space-y-3 ">
   
              
-              {/*{page.properties && Object.keys(page.properties).length > 0 && (
-                <>
-                  {Object.entries(page.properties).map(([key, value]) => (
-                    <div key={key} className="flex items-center text-sm">
-                      <span className="w-24 font-medium text-notion-text-gray dark:text-notion-text-gray-dark capitalize">{key}</span>
-                      <span className="text-notion-text dark:text-notion-text-dark">{String(value)}</span>
-                    </div>
-                  ))}
-                </>
-              )}*/}
             </div>
 
             {editor && (
@@ -1570,8 +1628,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
               >
                 <TextSelectionMenu
                   editor={editor}
-                  onOpenAiPanel={onOpenAiPanel}
+                  onOpenAiPanel={() => onOpenAiPanel()}
                   onCreatePageFromSelection={handleCreatePageFromSelection}
+                  onOpenFlashcardCreator={handleOpenFlashcardCreatorWithAI}
                 />
               </BubbleMenu>
             )}

@@ -15,7 +15,11 @@ import { compare } from 'fast-json-patch';
 import { SpotlightSearch } from './components/SpotlightSearch';
 import { GraphView } from './components/GraphView';
 import { FlowView } from './components/FlowView';
-import { TasksView } from './components/TasksView'; // <-- 1. IMPORTA LA NUOVA VISTA
+import { TasksView } from './components/TasksView';
+// --- INIZIO NUOVI IMPORT ---
+import { FlashcardDashboard } from './components/FlashcardDashboard';
+import { ReviewView } from './components/ReviewView';
+// --- FINE NUOVI IMPORT ---
 import { MobileDrawerProvider } from './context/MobileDrawerContext';
 export type Page = Doc<"pages">;
 
@@ -93,7 +97,11 @@ export default function App() {
   const [isGraphViewOpen, setIsGraphViewOpen] = useState(false);
 
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
-  const [aiInitialText, setAiInitialText] = useState(""); 
+  // --- INIZIO MODIFICA STATO AI ---
+  const [aiInitialText, setAiInitialText] = useState("");
+  const [aiInitialFlashcard, setAiInitialFlashcard] = useState<{q: string, a: string} | null>(null);
+  const [aiFlashcardContext, setAiFlashcardContext] = useState<{pageId: string, blockId: string | null} | null>(null);
+  // --- FINE MODIFICA STATO AI ---
   
   const editorRef = useRef<EditorHandle>(null); 
   const layoutRef = useRef<HTMLDivElement>(null); 
@@ -102,7 +110,14 @@ export default function App() {
   const [isFlowViewOpen, setIsFlowViewOpen] = useState(false);
   const [flowViewPageId, setFlowViewPageId] = useState<string | null>(null);
 
-  const [isTasksViewOpen, setIsTasksViewOpen] = useState(false); // <-- 2. AGGIUNGI NUOVO STATO
+  const [isTasksViewOpen, setIsTasksViewOpen] = useState(false);
+
+  // --- INIZIO NUOVA SEZIONE: Stati Flashcard ---
+  const [isFlashcardDashboardOpen, setIsFlashcardDashboardOpen] = useState(false);
+  const [isReviewSessionOpen, setIsReviewSessionOpen] = useState(false);
+  const [reviewSessionDeckId, setReviewSessionDeckId] = useState<string | null>(null);
+  const [reviewSessionDeckType, setReviewSessionDeckType] = useState<'page' | 'tag'>('page');
+  // --- FINE NUOVA SEZIONE ---
 
   const [mainPanelWidth, setMainPanelWidth] = useState(75); 
 
@@ -242,73 +257,116 @@ export default function App() {
 
   // --- GESTIONE PANNELLI (MODIFICATA) ---
 
-  // --- 3. CREA IL HANDLER PER APRIRE LA VISTA TASK ---
+  const closeAllPanels = () => {
+    setIsGraphViewOpen(false);
+    setIsFlowViewOpen(false);
+    setSplitViewPage(null);
+    setIsAiPanelOpen(false);
+    setIsTasksViewOpen(false);
+    setIsFlashcardDashboardOpen(false);
+    setIsReviewSessionOpen(false);
+  }
+
   const handleOpenTasksView = () => {
-    // Chiudi tutte le altre viste "speciali"
-    setIsGraphViewOpen(false); // Overlay
-    setIsFlowViewOpen(false); // Sostituzione Main
-    setSplitViewPage(null);     // Pannello laterale
-    setIsAiPanelOpen(false);    // Pannello laterale
-    
-    // Apri la vista Task
+    closeAllPanels();
     setIsTasksViewOpen(true);
   };
 
-  const handleOpenAiPanel = () => {
+  // --- INIZIO NUOVA SEZIONE: Gestori Flashcard ---
+  const handleOpenFlashcardDashboard = () => {
+    closeAllPanels();
+    setIsFlashcardDashboardOpen(true);
+  };
+
+  const handleStartReview = (deckId: string, type: 'page' | 'tag') => {
+    closeAllPanels();
+    setReviewSessionDeckId(deckId);
+    setReviewSessionDeckType(type);
+    setIsReviewSessionOpen(true); // Apre la vista di revisione
+  };
+
+  const handleCloseReview = () => {
+    setIsReviewSessionOpen(false);
+    setReviewSessionDeckId(null);
+    setIsFlashcardDashboardOpen(true); // Ritorna alla dashboard
+  };
+  // --- FINE NUOVA SEZIONE ---
+
+  const handleOpenAiPanel = (initialText: string = "") => {
     const editor = editorRef.current?.getEditor();
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    const selectedText = editor.state.doc.textBetween(from, to).trim();
+    if (!editor && !initialText) return;
+    
+    let selectedText = initialText;
+    if (!selectedText && editor) {
+        const { from, to } = editor.state.selection;
+        selectedText = editor.state.doc.textBetween(from, to).trim();
+    }
+    
+    closeAllPanels();
     setAiInitialText(selectedText || "");
-    setSplitViewPage(null); 
     setIsAiPanelOpen(true);
     setIsSidebarOpen(false); 
-    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
+    
+    setAiInitialFlashcard(null);
+    setAiFlashcardContext(null);
   };
+  
+  // --- NUOVA FUNZIONE: Apertura creatore Flashcard AI ---
+  const handleOpenFlashcardCreator = (
+    generatedCard: {q: string, a: string},
+    pageId: string,
+    blockId: string | null
+  ) => {
+    closeAllPanels();
+    setAiInitialFlashcard(generatedCard); // Imposta la card
+    setAiFlashcardContext({ pageId, blockId }); // Salva il contesto
+    
+    setAiInitialText(""); // Non serve testo selezionato
+    setIsAiPanelOpen(true);
+    setIsSidebarOpen(false); 
+  };
+  // --- FINE NUOVA FUNZIONE ---
 
   const handleCloseAiPanel = () => {
     setIsAiPanelOpen(false);
     setAiInitialText(""); 
+    setAiInitialFlashcard(null);
+    setAiFlashcardContext(null);
   };
 
   const handleOpenInSplitView = async (pageId: string, blockId: string | null = null) => {
     if (saveStatus === 'Dirty') {
        await handleSaveNow();
     }
-    setIsAiPanelOpen(false); 
+    closeAllPanels();
     setSplitViewPage({ pageId, blockId });
     setIsSidebarOpen(false); 
-    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
+    // Non chiudere la Review Session, così da poterla avere affiancata
+    //setIsReviewSessionOpen(false); // La review non può avere uno split
   };
 
   const handleOpenFlowAndEditor = async (pageId: string) => {
     if (saveStatus === 'Dirty') {
       await handleSaveNow();
     }
+    closeAllPanels();
     setFlowViewPageId(pageId);
     setIsFlowViewOpen(true);
     setSplitViewPage({ pageId: pageId, blockId: null });
-    setIsAiPanelOpen(false); 
     setIsSidebarOpen(false); 
-    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
   };
 
   const handleCloseSplitView = () => {
     setSplitViewPage(null);
   };
 
-  // --- 4. MODIFICA handleSelectPage per chiudere la TasksView ---
   const handleSelectPage = async (pageId: string | null) => { 
     if (saveStatus === 'Dirty') {
        await handleSaveNow();
     }
+    closeAllPanels();
     setActivePageId(pageId);
     setScrollToBlockId(null);
-    setIsAiPanelOpen(false); 
-    setSplitViewPage(null); 
-    setIsFlowViewOpen(false);
-    setFlowViewPageId(null);
-    setIsTasksViewOpen(false); // <-- AGGIUNGI QUESTA RIGA
     
     if (pageId) {
       window.history.pushState(null, '', `#${pageId}`);
@@ -322,15 +380,14 @@ export default function App() {
        await handleSaveNow();
     }
     
+    closeAllPanels();
+    
     if (pageId === activePageId) {
       setScrollToBlockId(blockId);
     } else {
       setActivePageId(pageId);
       setScrollToBlockId(blockId);
     }
-    setIsAiPanelOpen(false); 
-    setSplitViewPage(null); 
-    setIsTasksViewOpen(false); // <-- Chiudi la vista Task
     window.history.pushState(null, '', `#${pageId}:${blockId}`);
   };
 
@@ -384,9 +441,11 @@ export default function App() {
     localStorage.setItem('notion-clone-theme', theme);
   }, [theme]);
 
+  // --- MODIFICA: useEffect per hashchange ---
   useEffect(() => {
     const handleHashChange = () => {
-      if (splitViewPage || isAiPanelOpen || isTasksViewOpen) return; // <-- 5. AGGIUNGI isTasksViewOpen
+      // Aggiunti tutti i nuovi stati
+      if (splitViewPage || isAiPanelOpen || isTasksViewOpen || isFlashcardDashboardOpen || isReviewSessionOpen) return;
 
       const hash = window.location.hash.substring(1);
       if (!hash) {
@@ -413,7 +472,8 @@ export default function App() {
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [allPagesMetadata, activePageId, splitViewPage, isAiPanelOpen, pages, isTasksViewOpen]); // <-- 6. AGGIUNGI isTasksViewOpen
+  }, [allPagesMetadata, activePageId, splitViewPage, isAiPanelOpen, pages, isTasksViewOpen, isFlashcardDashboardOpen, isReviewSessionOpen]); // <-- Aggiungi dipendenze
+  // --- FINE MODIFICA ---
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -604,7 +664,10 @@ export default function App() {
               setIsFlowViewOpen(true);
             }}
             onOpenFlowAndEditor={handleOpenFlowAndEditor}
-            onOpenTasksView={handleOpenTasksView} // <-- 7. PASSA IL HANDLER ALLA SIDEBAR
+            onOpenTasksView={handleOpenTasksView}
+            // --- NUOVA PROP ---
+            onOpenFlashcards={handleOpenFlashcardDashboard}
+            // --- FINE NUOVA PROP ---
             />
 
           <div 
@@ -622,7 +685,7 @@ export default function App() {
               lastSaveTime={lastSaveTime}
               onSaveNow={handleSaveNow}
               lastModified={lastModified}
-              onOpenSpotlight={() => setIsSpotlightOpen(true)} // <-- AGGIUNGI QUESTA RIGA
+              onOpenSpotlight={() => setIsSpotlightOpen(true)}
             />
 
             <div ref={layoutRef} className="flex h-full w-full">
@@ -632,10 +695,24 @@ export default function App() {
                 className={`h-full ${!isSidePanelOpen ? 'w-full' : 'flex-shrink-0'}`}
                 style={{ width: isSidePanelOpen ? `${mainPanelWidth}%` : '100%' }}
               >
-                {/* --- 8. MODIFICA LOGICA DI RENDER --- */}
-                {isTasksViewOpen ? (
+                {/* --- MODIFICA LOGICA DI RENDER PRINCIPALE --- */}
+                
+                {isFlashcardDashboardOpen ? (
+                  <FlashcardDashboard
+                    onStartReview={handleStartReview}
+                    onClose={() => handleSelectPage(activePageId)} // Torna all'editor
+                    onSelectPage={handleSelectPage} // Per aprire un mazzo/pagina
+                  />
+                ) : isReviewSessionOpen && reviewSessionDeckId ? (
+                  <ReviewView
+                    deckId={reviewSessionDeckId}
+                    deckType={reviewSessionDeckType}
+                    onClose={handleCloseReview} // Torna alla dashboard
+                    onOpenInSplitView={handleOpenInSplitView} // Per il contesto
+                  />
+                ) : isTasksViewOpen ? (
                   <TasksView
-                    onClose={() => setIsTasksViewOpen(false)}
+                    onClose={() => handleSelectPage(activePageId)} // Torna all'editor
                     onSelectPage={handleSelectPage}
                     allPages={allPagesMetadata as Page[]}
                   />
@@ -674,6 +751,9 @@ export default function App() {
                     onSelectBlock={handleSelectBlock}
                     onOpenInSplitView={handleOpenInSplitView}
                     onOpenAiPanel={handleOpenAiPanel}
+                    // --- NUOVA PROP PER EDITOR ---
+                    onOpenFlashcardCreator={handleOpenFlashcardCreator}
+                    // --- FINE NUOVA PROP ---
                     saveStatus={saveStatus}
                     onSaveNow={handleSaveNow}
                     isSplitView={isSidePanelOpen} 
@@ -750,7 +830,8 @@ export default function App() {
                     scrollToBlockId={splitViewPage.blockId} 
                     onDoneScrolling={() => setSplitViewPage(s => s ? { ...s, blockId: null } : null)}
                     onOpenInSplitView={handleOpenInSplitView}
-                    onOpenAiPanel={handleOpenAiPanel}
+                    onOpenAiPanel={() => handleOpenAiPanel()}
+                    onOpenFlashcardCreator={handleOpenFlashcardCreator} // Passa anche qui
                     saveStatus={saveStatus}
                     onSaveNow={handleSaveNow}
                     isSplitView={isSidePanelOpen}
@@ -768,6 +849,7 @@ export default function App() {
                  </aside>
               )}
 
+              {/* --- MODIFICA PANNELLO AI --- */}
               {isAiPanelOpen && (
                 <aside 
                   className="h-full flex-shrink-0 relative" 
@@ -784,10 +866,16 @@ export default function App() {
                   
                   <AiSidebar 
                     initialText={aiInitialText} 
+                    // --- NUOVE PROP PER AISIDEBAR ---
+                    initialFlashcard={aiInitialFlashcard}
+                    flashcardContext={aiFlashcardContext}
+                    onClose={handleCloseAiPanel} // Per salvare e chiudere
+                    // --- FINE NUOVE PROP ---
                   />
 
                 </aside>
               )}
+              {/* --- FINE MODIFICA --- */}
               
             </div>
           </div>

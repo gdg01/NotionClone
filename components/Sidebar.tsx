@@ -15,8 +15,9 @@ import {
   GlobeIcon,
   FilterIcon,
   CheckSquareIcon,
-  PinIcon, // <-- 1. IMPORTA NUOVA ICONA
-  PinOffIcon // <-- 2. IMPORTA NUOVA ICONA
+  PinIcon,
+  PinOffIcon,
+  SparkleIcon // <-- 1. IMPORTA NUOVA ICONA (è in icons.tsx)
 } from './icons';
 import { EmojiPicker } from './EmojiPicker';
 import { useQuery } from 'convex/react';
@@ -26,7 +27,7 @@ import { Doc } from '../convex/_generated/dataModel';
 // Il tipo ora include 'isPinned' (anche se Page già lo aveva)
 type PageWithChildren = Page & { hasChildren: boolean; isPinned?: boolean };
 
-// --- Interfaccia props per Sidebar (invariata) ---
+// --- Interfaccia props per Sidebar (MODIFICATA) ---
 interface SidebarProps {
   onAddPage: (parentId: string | null) => void;
   onDeletePage: (pageId: string) => void;
@@ -45,6 +46,7 @@ interface SidebarProps {
   onOpenFlowView: (pageId: string) => void;
   onOpenFlowAndEditor: (pageId: string) => void;
   onOpenTasksView: () => void;
+  onOpenFlashcards: () => void; // <-- 2. AGGIUNGI NUOVA PROP
 }
 
 // --- Interfaccia props per PageItem (invariata) ---
@@ -64,7 +66,7 @@ interface PageItemProps {
   onOpenFlowAndEditor: (pageId: string) => void;
 }
 
-// --- Componente PageItem (MODIFICATO) ---
+// --- Componente PageItem (Invariato) ---
 const PageItem: React.FC<PageItemProps> = ({
   page,
   level,
@@ -84,17 +86,13 @@ const PageItem: React.FC<PageItemProps> = ({
   const isActive = page._id === activePageId;
   const hasChildren = page.hasChildren;
   
-  // --- 3. MODIFICA QUERY FIGLI ---
-  // La query ora restituisce un oggetto { pinned, private }
   const childPagesData = useQuery(
     api.pages.getSidebar,
     isExpanded && hasChildren ? { parentPage: page._id } : 'skip'
   );
   
-  // Estrai gli elenchi
   const pinnedChildPages = childPagesData?.pinned;
   const privateChildPages = childPagesData?.private;
-  // --- FINE MODIFICA 3 ---
 
   const handleIconClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -110,12 +108,10 @@ const PageItem: React.FC<PageItemProps> = ({
     }
   };
   
-  // --- 4. FUNZIONE PER FISSARE/SBLOCCARE ---
   const handleTogglePin = (e: React.MouseEvent) => {
     e.stopPropagation();
     onUpdatePage(page._id, { isPinned: !page.isPinned });
   };
-  // --- FINE MODIFICA 4 ---
 
   return (
     <div>
@@ -170,7 +166,6 @@ const PageItem: React.FC<PageItemProps> = ({
           <span className="truncate flex-grow">{page.title || 'Untitled'}</span>
         </div>
         
-        {/* --- 5. MODIFICA CONTROLLI HOVER --- */}
         <div className="flex items-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
            <button
             onClick={handleTogglePin}
@@ -213,13 +208,9 @@ const PageItem: React.FC<PageItemProps> = ({
             <AddPageIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
           </button>
         </div>
-        {/* --- FINE MODIFICA 5 --- */}
       </div>
 
-      {/* --- 6. MODIFICA RENDER FIGLI --- */}
-      {/* Ora renderizza due sezioni separate per i figli */}
       {isExpanded && (childPagesData === undefined) && (
-        // Stato di caricamento
         <div
           style={{ paddingLeft: `${(level + 1) * 16 + 4}px` }}
           className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark py-1"
@@ -230,7 +221,6 @@ const PageItem: React.FC<PageItemProps> = ({
       
       {isExpanded && childPagesData && (
         <>
-          {/* Figli Fissati */}
           {pinnedChildPages && pinnedChildPages.map((child) => (
             <PageItem
               key={child._id}
@@ -246,7 +236,6 @@ const PageItem: React.FC<PageItemProps> = ({
               onOpenFlowAndEditor={onOpenFlowAndEditor}
             />
           ))}
-          {/* Figli Privati */}
           {privateChildPages && privateChildPages.map((child) => (
             <PageItem
               key={child._id}
@@ -264,7 +253,6 @@ const PageItem: React.FC<PageItemProps> = ({
           ))}
         </>
       )}
-      {/* --- FINE MODIFICA 6 --- */}
     </div>
   );
 };
@@ -285,16 +273,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenFlowView,
   onOpenFlowAndEditor,
   onOpenTasksView,
+  onOpenFlashcards, // <-- 3. Ricevi la prop
 }) => {
-  // --- 7. MODIFICA QUERY PRINCIPALE ---
-  // La query ora restituisce un oggetto { pinned, private }
+
   const topLevelPagesData = useQuery(api.pages.getSidebar, {
     parentPage: undefined,
   });
 
   const pinnedPages = topLevelPagesData?.pinned;
   const privatePages = topLevelPagesData?.private;
-  // --- FINE MODIFICA 7 ---
 
   return (
     <>
@@ -323,7 +310,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       
-      {/* --- 8. MODIFICA NAVIGAZIONE --- */}
       <nav className="flex-1 px-2 overflow-y-auto">
           {topLevelPagesData === undefined && (
             <div className="text-xs text-notion-text-gray dark:text-notion-text-gray-dark p-2">
@@ -331,7 +317,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Sezione Pagine Fissate */}
           {pinnedPages && pinnedPages.length > 0 && (
             <div className="mt-2">
               <div className="sidebar-section-header">
@@ -355,7 +340,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
           
-          {/* Sezione Pagine Private */}
           {privatePages && (
              <div className="mt-2">
               <div className="sidebar-section-header">
@@ -384,47 +368,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </nav>
-        {/* --- FINE MODIFICA 8 --- */}
         
-         <div className="p-2 border-t border-notion-border dark:border-notion-border-dark flex items-center space-x-2">
-          <button
-            onClick={() => onAddPage(null)}
-            className="w-full flex items-center py-2 px-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
-          >
-            <AddPageIcon className="w-4 h-4 mr-2" />
-            Add a new page
-          </button>
-
-          {/* Il resto del footer è invariato */}
-          <button
-            onClick={onOpenTasksView}
-            className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
-            aria-label="Open Tasks View"
-            title="Tasks View"
-          >
-            <CheckSquareIcon className="w-4 h-4" />
-          </button>
+        {/* --- INIZIO MODIFICA FOOTER --- */}
+        <div className="p-2 border-t border-notion-border dark:border-notion-border-dark">
+          {/* Pulsanti Azione Principali */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => onAddPage(null)}
+              className="w-full flex items-center py-2 px-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
+            >
+              <AddPageIcon className="w-4 h-4 mr-2" />
+              Add a new page
+            </button>
+            <button
+              onClick={toggleTheme}
+              className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? (
+                <MoonIcon className="w-4 h-4" />
+              ) : (
+                <SunIcon className="w-4 h-4" />
+              )}
+            </button>
+          </div>
           
-          <button
-            onClick={onOpenGraphView}
-            className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
-            aria-label="Open Graph View"
-            title="Graph View"
-          >
-            <GlobeIcon className="w-4 h-4" />
-          </button>
-          <button
-            onClick={toggleTheme}
-            className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
-            aria-label="Toggle theme"
-          >
-            {theme === 'light' ? (
-              <MoonIcon className="w-4 h-4" />
-            ) : (
-              <SunIcon className="w-4 h-4" />
-            )}
-          </button>
+          {/* Pulsanti Viste App (Riorganizzati) */}
+          <div className="mt-1 flex items-center justify-around">
+            <button
+              onClick={onOpenGraphView}
+              className="flex-1 flex flex-col items-center p-2 text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
+              aria-label="Open Graph View"
+              title="Graph View"
+            >
+              <GlobeIcon className="w-4 h-4 mb-1" />
+              Graph
+            </button>
+            <button
+              onClick={onOpenTasksView}
+              className="flex-1 flex flex-col items-center p-2 text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
+              aria-label="Open Tasks View"
+              title="Tasks View"
+            >
+              <CheckSquareIcon className="w-4 h-4 mb-1" />
+              Tasks
+            </button>
+            <button
+              onClick={onOpenFlashcards} // <-- 4. USA LA NUOVA PROP
+              className="flex-1 flex flex-col items-center p-2 text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
+              aria-label="Open Flashcards"
+              title="Flashcards"
+            >
+              <SparkleIcon className="w-4 h-4 mb-1 text-blue-500" /> {/* Icona per Study */}
+              Study
+            </button>
+          </div>
         </div>
+        {/* --- FINE MODIFICA FOOTER --- */}
       </aside>
     </>
   );

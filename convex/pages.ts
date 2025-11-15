@@ -1,5 +1,5 @@
 // File: convex/pages.ts 
-// (SOSTITUZIONE COMPLETA - con getSidebar divisa)
+// (SOSTITUZIONE COMPLETA - con correzione "risveglio coda")
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
@@ -167,7 +167,7 @@ export const create = mutation({
 });
 
 
-// 5.a 'update' (invariato - gestisce già 'isPinned')
+// 5.a 'update' (MODIFICATO CON LA CORREZIONE)
 export const update = mutation({
     args: {
         id: v.id("pages"), 
@@ -206,6 +206,9 @@ export const update = mutation({
                 contentJson: content
             });
             
+            // <-- CORREZIONE: Avvia il processore della coda, nel caso fosse inattivo
+            await ctx.scheduler.runAfter(0, internal.searchNode.processEmbeddingQueue, {});
+
             await ctx.scheduler.runAfter(0, internal.links.updatePageLinks, {
                 pageId: id,
                 contentJson: content,
@@ -216,7 +219,7 @@ export const update = mutation({
     },
 });
 
-// 5.b 'patchContent' (invariato)
+// 5.b 'patchContent' (MODIFICATO CON LA CORREZIONE)
 export const patchContent = mutation({
     args: {
         id: v.id("pages"),
@@ -254,6 +257,9 @@ export const patchContent = mutation({
                 pageId: id,
                 contentJson: newContentString
             });
+
+            // <-- CORREZIONE: Avvia il processore della coda, nel caso fosse inattivo
+            await ctx.scheduler.runAfter(0, internal.searchNode.processEmbeddingQueue, {});
 
             await ctx.scheduler.runAfter(0, internal.links.updatePageLinks, {
                 pageId: id,
