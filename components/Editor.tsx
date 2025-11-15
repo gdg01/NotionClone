@@ -1504,7 +1504,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           />
 
           <>
-            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="mb-6 space-y-3 ">
 
 
               <div className="flex items-start">
@@ -1516,7 +1516,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                 </div>
               </div>
 
-              {page.properties && Object.keys(page.properties).length > 0 && (
+              {/*{page.properties && Object.keys(page.properties).length > 0 && (
                 <>
                   {Object.entries(page.properties).map(([key, value]) => (
                     <div key={key} className="flex items-center text-sm">
@@ -1525,7 +1525,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                     </div>
                   ))}
                 </>
-              )}
+              )}*/}
             </div>
 
             {editor && (
@@ -1547,10 +1547,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
 
         {!isReadOnly && (
           <>
-            <div className="mb-6 space-y-3 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="mb-6 space-y-3 ">
   
              
-              {page.properties && Object.keys(page.properties).length > 0 && (
+              {/*{page.properties && Object.keys(page.properties).length > 0 && (
                 <>
                   {Object.entries(page.properties).map(([key, value]) => (
                     <div key={key} className="flex items-center text-sm">
@@ -1559,7 +1559,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
                     </div>
                   ))}
                 </>
-              )}
+              )}*/}
             </div>
 
             {editor && (
