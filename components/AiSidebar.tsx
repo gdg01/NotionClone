@@ -122,7 +122,7 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
   // --- FINE MODIFICA ---
 
   return (
-    <div className="h-full bg-notion-sidebar dark:bg-notion-sidebar-dark border-l border-notion-border dark:border-notion-border-dark flex flex-col">
+    <div className="h-full bg-notion-bg dark:bg-notion-bg-dark border-l border-notion-border dark:border-notion-border-dark flex flex-col pt-[48px]">
       {/* Header (Modificato) */}
       <div className="p-4 flex items-center justify-between border-b border-notion-border dark:border-notion-border-dark">
         <h2 className="text-lg font-bold flex items-center">

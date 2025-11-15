@@ -1,7 +1,7 @@
 // File: src/components/Sidebar.tsx 
-// (SOSTITUZIONE COMPLETA - Con sezioni Pinned/Private e logica Pin)
+// (SOSTITUZIONE COMPLETA - Con z-index corretto e menu dropdown per le azioni)
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react'; // Importa useEffect
 import type { Page } from '../App';
 import {
   AddPageIcon,
@@ -17,7 +17,8 @@ import {
   CheckSquareIcon,
   PinIcon,
   PinOffIcon,
-  SparkleIcon // <-- 1. IMPORTA NUOVA ICONA (è in icons.tsx)
+  SparkleIcon,
+  DotsHorizontalIcon // <-- 1. IMPORTA ICONA 3 PUNTINI
 } from './icons';
 import { EmojiPicker } from './EmojiPicker';
 import { useQuery } from 'convex/react';
@@ -27,7 +28,7 @@ import { Doc } from '../convex/_generated/dataModel';
 // Il tipo ora include 'isPinned' (anche se Page già lo aveva)
 type PageWithChildren = Page & { hasChildren: boolean; isPinned?: boolean };
 
-// --- Interfaccia props per Sidebar (MODIFICATA) ---
+// --- Interfaccia props per Sidebar (invariata) ---
 interface SidebarProps {
   onAddPage: (parentId: string | null) => void;
   onDeletePage: (pageId: string) => void;
@@ -46,7 +47,7 @@ interface SidebarProps {
   onOpenFlowView: (pageId: string) => void;
   onOpenFlowAndEditor: (pageId: string) => void;
   onOpenTasksView: () => void;
-  onOpenFlashcards: () => void; // <-- 2. AGGIUNGI NUOVA PROP
+  onOpenFlashcards: () => void; 
 }
 
 // --- Interfaccia props per PageItem (invariata) ---
@@ -66,7 +67,7 @@ interface PageItemProps {
   onOpenFlowAndEditor: (pageId: string) => void;
 }
 
-// --- Componente PageItem (Invariato) ---
+// --- Componente PageItem (MODIFICATO) ---
 const PageItem: React.FC<PageItemProps> = ({
   page,
   level,
@@ -81,6 +82,11 @@ const PageItem: React.FC<PageItemProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  // --- 2. Aggiungi state e ref per il menu dropdown ---
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  // --- Fine Aggiunta ---
   const iconRef = useRef<HTMLButtonElement>(null);
 
   const isActive = page._id === activePageId;
@@ -93,6 +99,24 @@ const PageItem: React.FC<PageItemProps> = ({
   
   const pinnedChildPages = childPagesData?.pinned;
   const privateChildPages = childPagesData?.private;
+
+  // --- 3. Aggiungi useEffect per chiudere il menu cliccando fuori ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        menuButtonRef.current &&
+        !menuButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  // --- Fine Aggiunta ---
+
 
   const handleIconClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -166,48 +190,88 @@ const PageItem: React.FC<PageItemProps> = ({
           <span className="truncate flex-grow">{page.title || 'Untitled'}</span>
         </div>
         
-        <div className="flex items-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-           <button
-            onClick={handleTogglePin}
-            className="p-1 rounded hover:bg-notion-active dark:hover:bg-notion-active-dark"
-            title={page.isPinned ? "Sblocca pagina" : "Fissa pagina"}
-          >
-            {page.isPinned ? (
-               <PinOffIcon className="w-3.5 h-3.5 text-blue-500" />
-            ) : (
-               <PinIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
-            )}
-          </button>
-          
-           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenFlowView(page._id);
-            }}
-            className="p-1 rounded hover:bg-notion-active dark:hover:bg-notion-active-dark"
-            title="Visualizza flusso"
-          >
-            <FilterIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
-          </button>
+        {/* --- 4. SOSTITUISCI LE ICONE HOVER CON IL MENU DROPDOWN --- */}
+        <div className="relative flex-shrink-0">
           <button
+            ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation();
-              onDeletePage(page._id);
+              setIsMenuOpen(prev => !prev); // Toggle menu
             }}
-            className="p-1 rounded hover:bg-notion-active dark:hover:bg-notion-active-dark"
+            className="flex-shrink-0 p-1 rounded hover:bg-notion-active dark:hover:bg-notion-active-dark opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-label="Opzioni pagina"
           >
-            <TrashIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
+            <DotsHorizontalIcon className="w-4 h-4 text-notion-text-gray dark:text-notion-text-gray-dark" />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddPage(page._id);
-            }}
-            className="p-1 rounded hover:bg-notion-active dark:hover:bg-notion-active-dark"
-          >
-            <AddPageIcon className="w-3.5 h-3.5 text-notion-text-gray dark:text-notion-text-gray-dark" />
-          </button>
+
+          {isMenuOpen && (
+            <div
+              ref={menuRef}
+              // z-30 è sufficiente (essendo dentro la sidebar z-50)
+              className="absolute top-full right-0 mt-1 w-52 bg-notion-sidebar dark:bg-notion-sidebar-dark border border-notion-border dark:border-notion-border-dark rounded-md shadow-lg p-1 z-30"
+            >
+              {/* Pulsante Fissa/Sblocca */}
+              <button
+                onClick={(e) => {
+                  handleTogglePin(e);
+                  setIsMenuOpen(false);
+                }}
+                className="w-full flex items-center text-left px-2 py-1.5 text-sm rounded hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              >
+                {page.isPinned ? (
+                   <PinOffIcon className="w-3.5 h-3.5 mr-2 text-blue-500" />
+                ) : (
+                   <PinIcon className="w-3.5 h-3.5 mr-2" />
+                )}
+                {page.isPinned ? "Sblocca dalla cima" : "Fissa in cima"}
+              </button>
+              
+              {/* Pulsante Aggiungi Sottopagina */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddPage(page._id);
+                  setIsMenuOpen(false);
+                }}
+                className="w-full flex items-center text-left px-2 py-1.5 text-sm rounded hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              >
+                <AddPageIcon className="w-3.5 h-3.5 mr-2" />
+                Aggiungi sottopagina
+              </button>
+
+              {/* Pulsante Visualizza Flusso */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenFlowView(page._id);
+                  setIsMenuOpen(false);
+                }}
+                className="w-full flex items-center text-left px-2 py-1.5 text-sm rounded hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              >
+                <FilterIcon className="w-3.5 h-3.5 mr-2" />
+                Visualizza flusso
+              </button>
+
+              {/* Separatore */}
+              <div className="border-t border-notion-border dark:border-notion-border-dark my-1 mx-1"></div>
+
+              {/* Pulsante Elimina */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeletePage(page._id);
+                  setIsMenuOpen(false);
+                }}
+                className="w-full flex items-center text-left px-2 py-1.5 text-sm rounded text-red-500 hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              >
+                <TrashIcon className="w-3.5 h-3.5 mr-2" />
+                Elimina pagina
+              </button>
+            </div>
+          )}
         </div>
+        {/* --- FINE SOSTITUZIONE --- */}
+
       </div>
 
       {isExpanded && (childPagesData === undefined) && (
@@ -257,7 +321,7 @@ const PageItem: React.FC<PageItemProps> = ({
   );
 };
 
-// --- Componente Sidebar Principale (MODIFICATO) ---
+// --- Componente Sidebar Principale (MODIFICATO z-index) ---
 export const Sidebar: React.FC<SidebarProps> = ({
   onAddPage,
   onDeletePage,
@@ -273,7 +337,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenFlowView,
   onOpenFlowAndEditor,
   onOpenTasksView,
-  onOpenFlashcards, // <-- 3. Ricevi la prop
+  onOpenFlashcards, 
 }) => {
 
   const topLevelPagesData = useQuery(api.pages.getSidebar, {
@@ -285,19 +349,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed top-4 left-4 z-30 p-2 rounded-md bg-white/50 dark:bg-black/50 backdrop-blur-sm hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors ${
-          isOpen ? 'hidden' : 'block'
-        }`}
-        aria-label="Open sidebar"
-      >
-        <MenuIcon className="w-6 h-6" />
-      </button>
       <aside
-        className={`fixed top-0 left-0 h-full bg-notion-sidebar dark:bg-notion-sidebar-dark border-r border-notion-border dark:border-notion-border-dark flex flex-col z-20 transition-transform duration-300 ease-in-out ${
+        // --- 5. MODIFICA z-index ---
+        // Cambiato z-20 in z-50 per posizionare la sidebar
+        // sopra la barra di navigazione (che è z-40)
+        className={`fixed top-0 left-0 h-full bg-notion-sidebar dark:bg-notion-sidebar-dark border-r border-notion-border dark:border-notion-border-dark flex flex-col z-50 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } w-64 md:w-72 transition-colors duration-200`}
+        // --- FINE MODIFICA z-index ---
       >
         <div className="p-4 flex items-center justify-between">
           <h1 className="text-lg font-bold">Notion Clone</h1>
@@ -369,7 +428,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </nav>
         
-        {/* --- INIZIO MODIFICA FOOTER --- */}
+        {/* Footer (invariato) */}
         <div className="p-2 border-t border-notion-border dark:border-notion-border-dark">
           {/* Pulsanti Azione Principali */}
           <div className="flex items-center space-x-2">
@@ -414,7 +473,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Tasks
             </button>
             <button
-              onClick={onOpenFlashcards} // <-- 4. USA LA NUOVA PROP
+              onClick={onOpenFlashcards}
               className="flex-1 flex flex-col items-center p-2 text-xs text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded"
               aria-label="Open Flashcards"
               title="Flashcards"
@@ -424,7 +483,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
         </div>
-        {/* --- FINE MODIFICA FOOTER --- */}
       </aside>
     </>
   );

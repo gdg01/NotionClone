@@ -16,7 +16,7 @@ import { BacklinksList } from './BacklinksList';
 
 export type SaveStatus = "Idle" | "Dirty" | "Saving" | "Saved";
 
-// Interfaccia Props (ora più semplice, senza le prop del drawer)
+// Interfaccia Props (invariata)
 interface BreadcrumbNavProps {
   pages: Page[];
   activePageId: string | null;
@@ -29,6 +29,7 @@ interface BreadcrumbNavProps {
   lastModified: number | null; 
   onSaveNow: () => void;
   onOpenSpotlight: () => void;
+  isSplitView?: boolean;
 }
 
 // (Icona Spinner e CheckIcon rimangono invariate)
@@ -44,7 +45,7 @@ const CheckIcon = (props: { className?: string }) => (
   </svg>
 );
 
-// (SaveStatusIndicator rimane invariato)
+// (SaveStatusIndicator - MODIFICATO z-index)
 const SaveStatusIndicator: React.FC<{ 
   status: SaveStatus;
   lastSaveTime: Date | null;
@@ -122,7 +123,11 @@ const SaveStatusIndicator: React.FC<{
       {isMenuOpen && (
         <div
           ref={menuRef}
-          className="absolute top-full right-0 mt-2 w-56 bg-notion-bg-dark border border-notion-border-dark rounded-md shadow-lg p-1 z-20"
+          // --- MODIFICA QUI ---
+          // Cambiato z-20 in z-50 per farlo apparire sopra la maggior parte
+          // degli elementi della pagina (come la TOC sticky che potrebbe essere z-30 o z-40)
+          className="absolute top-full right-0 mt-2 w-56 bg-notion-bg-dark border border-notion-border-dark rounded-md shadow-lg p-1 z-50"
+          // --- FINE MODIFICA ---
         >
           <div className="flex flex-col">
             <div className="px-2 py-1 text-sm text-notion-text-gray-dark">
@@ -158,7 +163,8 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   lastSaveTime,
   lastModified, 
   onSaveNow,
-  onOpenSpotlight
+  onOpenSpotlight,
+  isSplitView = false
 }) => {
 
   const breadcrumbPath = useMemo(() => {
@@ -178,26 +184,30 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
     [pages, activePageId]
   );
   
-  // --- INIZIO MODIFICA ---
-  // 1. Leggi i dati dal Context
   const { headings, backlinks } = useMobileDrawerData();
   const [drawerContent, setDrawerContent] = useState<'toc' | 'backlinks' | null>(null);
 
   const hasHeadings = headings.length > 0;
   const hasBacklinks = backlinks.length > 0;
-  // --- FINE MODIFICA ---
 
   return (
-    // 2. Usa un React.Fragment per il Portal
     <React.Fragment>
       <div 
-        className={`fixed top-0 left-0 right-0 z-10 flex items-center h-12 px-4 text-notion-text dark:text-notion-text-dark transition-all duration-300 ease-in-out`}
-        style={{ paddingLeft: isSidebarOpen ? 'calc(18rem + 1rem)' : '1rem' }} 
+        // --- MODIFICA QUI ---
+        // Cambiato z-1000 (classe custom/non valida) in z-40 (classe standard
+        // di Tailwind). Questo imposta la barra sopra la maggior parte del
+        // contenuto, ma *sotto* i suoi stessi menu (che abbiamo impostato a z-50).
+        className={`fixed top-0 left-0 right-0 z-40 flex items-center h-12 text-notion-text dark:text-notion-text-dark transition-all duration-300 ease-in-out bg-notion-bg dark:bg-notion-bg-dark`}
+        // --- FINE MODIFICA ---
+        style={{ 
+          paddingLeft: isSidebarOpen ? 'calc(18rem + 1rem)' : '1rem',
+          paddingRight: '1rem'
+        }} 
       >
         {!isSidebarOpen && (
           <button 
             onClick={toggleSidebar} 
-            className="p-2 -ml-2 mr-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark transition-colors"
+            className="p-2 mr-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark transition-colors"
             aria-label="Open sidebar"
           >
             <MenuIcon className="w-5 h-5" />
@@ -252,7 +262,7 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           
           <PomodoroTimer />
 
-          {/* --- 3. AGGIUNGI I PULSANTI MOBILI --- */}
+          {/* Pulsanti mobile (invariati) */}
           {hasHeadings && (
             <button
               onClick={() => setDrawerContent('toc')}
@@ -273,15 +283,19 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
               <LinkIcon className="w-4 h-4" />
             </button>
           )}
-          {/* --- FINE 3. --- */}
 
           <div className="flex-shrink-0">
             <UserButton afterSignOutUrl="/" />
           </div>
+
+          {isSplitView && (
+            <div className="w-8 flex-shrink-0" />
+          )}
+
         </div>
       </div>
 
-      {/* --- 4. RENDERIZZA IL DRAWER --- */}
+      {/* Drawer (invariato) */}
       <MobileDrawer
         isOpen={drawerContent !== null}
         onClose={() => setDrawerContent(null)}
@@ -292,24 +306,23 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
             headings={headings}
             pageId={activePageId!}
             isSplitView={false}
-            mode="mobile" // Prop per la modalità mobile
-            onLinkClick={() => setDrawerContent(null)} // Chiudi al clic
+            mode="mobile" 
+            onLinkClick={() => setDrawerContent(null)} 
           />
         )}
         {drawerContent === 'backlinks' && activePage && (
           <BacklinksList
             backlinks={backlinks}
             onSelectPage={(pageId) => {
-              onSelectPage(pageId); // Naviga
-              setDrawerContent(null); // Chiudi
+              onSelectPage(pageId); 
+              setDrawerContent(null); 
             }}
-            onOpenInSplitView={() => {}} // Non supportato qui
+            onOpenInSplitView={() => {}} 
             isSidebarOpen={false}
-            mode="mobile" // Prop per la modalità mobile
+            mode="mobile" 
           />
         )}
       </MobileDrawer>
-      {/* --- FINE 4. --- */}
     </React.Fragment>
   );
 };

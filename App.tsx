@@ -810,7 +810,7 @@ export default function App() {
                     onClick={handleCloseSplitView}
                     className="absolute top-3 right-3 z-20 p-1.5 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
                     aria-label="Close split panel"
-                    style={{ top: '0.8rem', right: '0.8rem' }} 
+                    style={{ top: '4rem', right: '0.8rem' }} 
                   >
                     <XIcon className="w-4 h-4" />
                   </button>
@@ -859,7 +859,7 @@ export default function App() {
                     onClick={handleCloseAiPanel}
                     className="absolute top-3 right-3 z-20 p-1.5 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
                     aria-label="Close AI panel"
-                    style={{ top: '0.8rem', right: '0.8rem' }} 
+                    style={{ top: '4rem', right: '0.8rem' }} 
                   >
                     <XIcon className="w-4 h-4" />
                   </button>

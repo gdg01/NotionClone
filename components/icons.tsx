@@ -428,3 +428,20 @@ export const EditIcon: React.FC<IconProps> = (props: IconProps) => (
     <path d="M12.25 3.5A2.25 2.25 0 0 0 10 5.75v6.5a.75.75 0 0 0 1.5 0v-6.5a.75.75 0 0 1 .75-.75h.25a.75.75 0 0 0 0-1.5h-.25Z" />
   </svg>
 );
+
+export const DotsHorizontalIcon = (props: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className={`w-6 h-6 ${props.className || ''}`}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm5.25 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm5.25 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+    />
+  </svg>
+);

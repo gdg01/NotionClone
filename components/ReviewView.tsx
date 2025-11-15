@@ -1,4 +1,4 @@
-// File: components/ReviewView.tsx (NUOVO FILE)
+// File: components/ReviewView.tsx (MODIFICATO E COMPLETO)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
@@ -109,10 +109,14 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     );
   }
 
+  // --- MODIFICA PRINCIPALE ---
+  // Aggiunto 'relative', 'overflow-y-auto' e 'pt-24' (padding-top)
+  // per permettere lo scroll e lasciare spazio all'header 'absolute'.
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center p-4 bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark">
-      {/* Header fisso */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center">
+    <div className="h-full w-full relative flex flex-col items-center p-4 pt-24 pb-8 overflow-y-auto bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark">
+      
+      {/* Header fisso (rimane absolute) */}
+      <div className="absolute top-8 left-0 right-0 p-4 flex justify-between items-center">
         <button
           onClick={onClose}
           className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark flex items-center"
@@ -185,7 +189,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
       <div className="w-full max-w-3xl pt-8">
         {!isEditing && (
           isAnswerShown ? (
-            // --- Pulsanti Valutazione ---
+            // --- Pulsanti Valutazione (già mobile-friendly) ---
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 onClick={() => handleReview(0)}

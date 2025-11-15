@@ -143,7 +143,7 @@ const TagInput: React.FC<TagInputProps> = ({ pageTags, onUpdatePageTags }) => {
       setIsDropdownOpen(false);
       inputRef.current?.focus();
     } catch (error) {
-      console.error("Errore durante la creazione del tag:", error);
+      console.error("Errore during la creazione del tag:", error);
     }
   };
 
@@ -1232,7 +1232,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         // --- INIZIO NUOVA ESTENSIONE ---
         !isReadOnly && FlashcardSyntax.configure({
             pageId: page._id,
-            // Passiamo la mutazione Convex direttamente all'estensione
+            // Passiamo la mutazione Convex directly all'estensione
             onUpsert: (data: { front: string, back: string, blockId: string }) => {
                 upsertFlashcardSyntax({
                     front: data.front,
@@ -1477,7 +1477,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   return (
     <div
       ref={scrollContainerRef}
+      // --- MODIFICA QUI ---
+      // 1. Ripristinato 'pt-12' per fare spazio alla barra fixed
       className="h-full overflow-y-auto pt-12 scrollbar-none"
+      // --- FINE MODIFICA ---
     >
       {!isReadOnly && (
         <TableOfContents
@@ -1519,7 +1522,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         )}
 
         <div className="relative group">
-          <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}>
+          {/* --- MODIFICA QUI --- */}
+          {/* 2. Rimosso 'pt-8' perché 'pt-12' gestisce tutto */}
+          <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}> 
+          {/* --- FINE MODIFICA --- */}
             <button
               onClick={() => !isReadOnly && setIsPickerOpen(true)}
               disabled={isReadOnly}
