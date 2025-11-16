@@ -1,4 +1,4 @@
-// File: src/components/BlockActions.tsx (SOSTITUZIONE COMPLETA)
+// File: components/BlockActions.tsx (Corretto)
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { Editor } from '@tiptap/core';
@@ -30,84 +30,78 @@ interface BlockActionsProps {
 
 const TurnIntoMenu = ({ editor, pos, closeMenus }: { editor: Editor; pos: number; closeMenus: () => void; }) => {
     
-    // --- MODIFICA CHIAVE: La chiamata a nodeAt(pos) è ora sicura ---
+    // Controllo di sicurezza (invariato, ma corretto)
     let node: Node | null | undefined;
     try {
-        // Questa è la linea (ex linea 35) che causava il RangeError
-        // Se 'pos' è obsoleto a causa di una transazione (es. paste),
-        // questa chiamata fallirà.
         node = editor.state.doc.nodeAt(pos);
     } catch (e) {
         console.warn(`Error resolving node at pos ${pos} in TurnIntoMenu:`, e);
-        // Se non riusciamo a trovare il nodo, non possiamo renderizzare il menu.
-        // Restituiamo null per evitare il crash dell'applicazione.
         return null; 
     }
     
-    // Se il nodo non esiste (per qualsiasi motivo), non renderizzare nulla.
     if (!node) {
         return null; 
     }
-    // --- FINE MODIFICA ---
-
-
-    // --- Logica invariata, ma ora usa 'node' sapendo che è valido ---
+    
+    // --- INIZIO MODIFICA: Ordine della catena di comandi ---
+    // Ora usiamo .setNodeSelection(pos).focus() invece di .focus().setNodeSelection(pos)
     const turnIntoOptions = [
         { 
             name: 'Text', 
             icon: TextIcon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).setParagraph().run(), 
-            isActive: node.type.name === 'paragraph' // 'node' è garantito
+            command: () => editor.chain().setNodeSelection(pos).focus().setParagraph().run(), 
+            isActive: node.type.name === 'paragraph'
         },
         { 
             name: 'Heading 1', 
             icon: Heading1Icon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleHeading({ level: 1 }).run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleHeading({ level: 1 }).run(), 
             isActive: node.type.name === 'heading' && node.attrs.level === 1 
         },
         { 
             name: 'Heading 2', 
             icon: Heading2Icon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleHeading({ level: 2 }).run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleHeading({ level: 2 }).run(), 
             isActive: node.type.name === 'heading' && node.attrs.level === 2 
         },
         { 
             name: 'Heading 3', 
             icon: Heading3Icon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleHeading({ level: 3 }).run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleHeading({ level: 3 }).run(), 
             isActive: node.type.name === 'heading' && node.attrs.level === 3 
         },
         { 
             name: 'Bulleted list', 
             icon: ListIcon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleBulletList().run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleBulletList().run(), 
             isActive: node.type.name === 'bulletList' 
         },
         { 
             name: 'Numbered list', 
             icon: ListOrderedIcon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleOrderedList().run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleOrderedList().run(), 
             isActive: node.type.name === 'orderedList' 
         },
         { 
             name: 'Quote', 
             icon: QuoteIcon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleBlockquote().run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleBlockquote().run(), 
             isActive: node.type.name === 'blockquote' 
         },
         { 
             name: 'Callout', 
             icon: CalloutIcon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleCallout().run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleCallout().run(), 
             isActive: node.type.name === 'callout' 
         },
         { 
             name: 'Code block', 
             icon: CodeIcon, 
-            command: () => editor.chain().focus().setNodeSelection(pos).toggleCodeBlock().run(), 
+            command: () => editor.chain().setNodeSelection(pos).focus().toggleCodeBlock().run(), 
             isActive: node.type.name === 'codeBlock' 
         },
     ];
+    // --- FINE MODIFICA ---
 
     return (
         <div className="block-submenu-content"> 
@@ -128,7 +122,7 @@ const TurnIntoMenu = ({ editor, pos, closeMenus }: { editor: Editor; pos: number
     );
 };
 
-// Componente principale BlockActions (completamente invariato)
+// Componente principale BlockActions (invariato)
 export const BlockActions: React.FC<BlockActionsProps> = ({ editor, pos, pageId }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuView, setMenuView] = useState<'main' | 'turnInto'>('main');
@@ -238,7 +232,9 @@ export const BlockActions: React.FC<BlockActionsProps> = ({ editor, pos, pageId 
             
             <div 
                 ref={menuRef} 
-                className="block-menu z-10"
+                // --- MODIFICA: Aggiunto z-20 e pointer-events-auto ---
+                className="block-menu z-20 pointer-events-auto"
+                // --- FINE MODIFICA ---
                 style={{
                     position: 'absolute',
                     overflow: 'hidden',

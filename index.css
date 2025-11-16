@@ -1,3 +1,4 @@
+/* File: index.css (Corretto) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -431,28 +432,42 @@ body {
   min-height: 1.6em; /* Ensure even empty blocks have a footprint */
 }
 
-/* Block Handle Styles */
+/* --- INIZIO MODIFICA BLOCCO HANDLE --- */
+
+.block-wrapper {
+  position: relative;
+}
+
+/* 1. La maniglia è invisibile e NON interattiva di default */
 .block-handle {
   display: flex;
   align-items: center;
   position: absolute;
   top: 0;
-  left: 0;
+  left: 0rem;
   transform: translateX(-100%);
   padding-right: 0.5rem; /* space between handle and block */
   z-index: 10;
   user-select: none;
   height: 1.6em; /* Match line-height for alignment */
-  opacity: 0; /* Initially hidden but rendered */
-  pointer-events: auto; /* Always interactive */
+  opacity: 0;
+  pointer-events: none; /* <-- NON INTERATTIVO */
   transition: opacity 0.15s ease-in-out;
 }
 
-/* Show handle on its own hover state */
-.block-handle:hover {
+/* 2. Mostra la maniglia e rendila interattiva QUANDO il blocco è in hover */
+.block-wrapper:hover .block-handle {
   opacity: 1;
+  pointer-events: auto; /* <-- ORA INTERATTIVO */
 }
 
+/* 3. Mantieni la maniglia visibile e interattiva QUANDO il suo menu è aperto */
+.block-wrapper .block-handle.is-active {
+  opacity: 1;
+  pointer-events: auto; /* <-- INTERATTIVO */
+}
+
+/* Stili del pulsante (invariati) */
 .handle-button {
   padding: 2px;
   border-radius: 4px;
@@ -470,6 +485,8 @@ body {
   background-color: #303030;
   color: #e2e2e2;
 }
+
+/* 4. Assicurati che il menu sia sopra tutto (z-20) e blocchi i click */
 .block-menu {
   position: absolute;
   top: -100%;
@@ -479,10 +496,13 @@ body {
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 4px;
-  z-index: 10;
+  z-index: 20; /* <-- Z-INDEX PIÙ ALTO */
   margin-top: 4px;
   width: 200px;
+  pointer-events: auto; /* <-- BLOCCA IL MOUSE */
 }
+/* --- FINE MODIFICA BLOCCO HANDLE --- */
+
 .dark .block-menu {
   background: var(--notion-sidebar-dark, #202020);
   border-color: var(--notion-border-dark, #3a3a3a);
@@ -526,34 +546,6 @@ body {
 .dark .block-submenu {
   background: var(--notion-sidebar-dark, #202020);
   border-color: var(--notion-border-dark, #3a3a3a);
-}
-
-/* Stili per l'handle del blocco (POSIZIONE CORRETTA) */
-.block-wrapper {
-  position: relative;
-}
-
-.block-handle {
-  opacity: 0;
-  position: absolute;
-  /* MODIFICA: 
-    Posiziona l'handle a 0.75rem (12px) dal bordo del 
-    contenitore del blocco, invece che fuori dallo schermo. 
-  */
-  left: 0rem;
-  top: 0;
-  transition: opacity 150ms ease-in-out;
-  z-index: 10;
-}
-
-/* MODIFICA:
-  Mostra l'handle sia al :hover sul wrapper, 
-  SIA quando il menu è aperto (classe .is-active).
-  Questo risolve il problema del menu che scompare.
-*/
-.block-wrapper:hover .block-handle,
-.block-wrapper .block-handle.is-active {
-  opacity: 1;
 }
 
 /*
@@ -928,4 +920,22 @@ input[type="number"]::-webkit-inner-spin-button {
 /* Nasconde le freccette su Firefox */
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Stile per l'equazione inline */
+code[data-type="inline-math"] {
+  font-family: 'Courier New', Courier, monospace; /* O un font per codice/matematica */
+  font-size: 0.9em;
+  font-weight: 600;
+  padding: 0.1em 0.3em;
+  background-color: rgba(135, 131, 120, 0.15); /* Sfondo grigio chiaro */
+  color: #EB5757; /* Un colore per distinguerlo, es. rosso */
+  border-radius: 4px;
+  margin: 0 2px;
+}
+
+/* Stile per la modalità scura */
+.dark code[data-type="inline-math"] {
+  background-color: rgba(135, 131, 120, 0.25);
+  color: #FF7B72; /* Un rosso più brillante per il dark mode */
 }

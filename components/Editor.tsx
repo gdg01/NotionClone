@@ -67,9 +67,8 @@ import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc, Id } from '../convex/_generated/dataModel';
 import { useMobileDrawerData } from '../context/MobileDrawerContext';
 import { DatabaseView } from '../extensions/DatabaseView';
-// --- INIZIO NUOVO IMPORT ---
 import { FlashcardSyntax } from '../extensions/FlashcardSyntax'; // Nuova estensione Tiptap
-// --- FINE NUOVO IMPORT ---
+import { InlineMath } from '../extensions/InlineMath';
 
 // --- TagInput (Invariato) ---
 interface TagInputProps {
@@ -1151,9 +1150,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             html: true,
             paste: true,
             linkify: false,
-          }
+          },
           
         }),
+        InlineMath,
         ColumnDragHandler,
         Dropcursor.configure({ color: '#60A5FA', width: 2 }),
         Paragraph.extend({
@@ -1474,180 +1474,145 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   ]);
 
   // --- Render (Invariato) ---
-  return (
-    <div
-      ref={scrollContainerRef}
-      // --- MODIFICA QUI ---
-      // 1. Ripristinato 'pt-12' per fare spazio alla barra fixed
-      className="h-full overflow-y-auto pt-12 scrollbar-none"
-      // --- FINE MODIFICA ---
-    >
-      {!isReadOnly && (
-        <TableOfContents
-          headings={headings}
-          pageId={page._id}
-          isSplitView={isSplitView}
-          mode="desktop"
-        />
-      )}
+return (
+  <div
+    ref={scrollContainerRef}
+    className="h-full overflow-y-auto pt-12 scrollbar-none"
+  >
+    {!isReadOnly && (
+      <TableOfContents
+        headings={headings}
+        pageId={page._id}
+        isSplitView={isSplitView}
+        mode="desktop"
+      />
+    )}
 
-      {backlinks && backlinks.length > 0 && (
-        <BacklinksList
-          isSidebarOpen={isSidebarOpen}
-          backlinks={backlinks as EnrichedBacklink[]}
-          onSelectPage={onSelectPage}
-          onOpenInSplitView={onOpenInSplitView}
-          mode="desktop"
-        />
-      )}
+    {backlinks && backlinks.length > 0 && (
+      <BacklinksList
+        isSidebarOpen={isSidebarOpen}
+        backlinks={backlinks as EnrichedBacklink[]}
+        onSelectPage={onSelectPage}
+        onOpenInSplitView={onOpenInSplitView}
+        mode="desktop"
+      />
+    )}
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-8 lg:px-12 relative">
+    <div className="max-w-4xl mx-auto px-4 sm:px-8 lg:px-12 relative">
 
-        {page.coverImage && (
-          <div className="w-full h-48 rounded-lg overflow-hidden group relative mb-4 mt-8">
-            <img
-              src={page.coverImage}
-              alt="Cover"
-              className="w-full h-full object-cover"
-            />
-            {!isReadOnly && (
-              <button
-                onClick={() => onUpdatePage(page._id, { coverImage: undefined })}
-                className="absolute top-2 right-2 z-10 p-1 bg-white/70 dark:bg-black/70 rounded shadow text-notion-text dark:text-notion-text-dark opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-              >
-                Remove Cover
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="relative group">
-          {/* --- MODIFICA QUI --- */}
-          {/* 2. Rimosso 'pt-8' perché 'pt-12' gestisce tutto */}
-          <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}> 
-          {/* --- FINE MODIFICA --- */}
+      {page.coverImage && (
+        <div className="w-full h-48 rounded-lg overflow-hidden group relative mb-4 mt-8">
+          <img
+            src={page.coverImage}
+            alt="Cover"
+            className="w-full h-full object-cover"
+          />
+          {!isReadOnly && (
             <button
-              onClick={() => !isReadOnly && setIsPickerOpen(true)}
-              disabled={isReadOnly}
-              className="text-4xl block hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded p-1 bg-white dark:bg-notion-bg-dark shadow disabled:hover:bg-transparent"
-              aria-label="Add icon"
+              onClick={() => onUpdatePage(page._id, { coverImage: undefined })}
+              className="absolute top-2 right-2 z-10 p-1 bg-white/70 dark:bg-black/70 rounded shadow text-notion-text dark:text-notion-text-dark opacity-0 group-hover:opacity-100 transition-opacity text-xs"
             >
-              {page.icon ? (
-                page.icon
-              ) : (
-                <NewPageIcon className="w-8 h-8 text-notion-text-gray dark:text-notion-text-gray-dark" />
-              )}
-            </button>
-            {isPickerOpen && !isReadOnly && (
-              <div className="absolute top-0 left-0 z-10">
-                <EmojiPicker
-                  onSelect={(emoji) => {
-                    onUpdatePage(page._id, { icon: emoji });
-                    setIsPickerOpen(false);
-                  }}
-                  onClose={() => setIsPickerOpen(false)}
-                />
-              </div>
-            )}
-          </div>
-
-          {!page.coverImage && !isReadOnly && (
-            <button
-              onClick={() => onUpdatePage(page._id, {
-                coverImage: "https://images.unsplash.com/photo-1506744038136-46273834b3IJ?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1500&q=80"
-              })}
-              className="text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark p-1 rounded ml-1 mt-1"
-            >
-              Add Cover
+              Remove Cover
             </button>
           )}
+        </div>
+      )}
 
-          <textarea
-            ref={titleRef}
-            rows={1}
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              debouncedOnTitleChange(e.target.value);
-              e.currentTarget.style.height = 'auto';
-              e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
-            }}
-            onBlur={() => {
-              debouncedOnTitleChange.cancel();
-              onTitleChange(title);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder="Untitled"
-            className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4 resize-none overflow-hidden"
+      <div className="relative group">
+        <div className={page.coverImage ? 'mt-[-36px] ml-1' : 'mt-8'}>
+          <button
+            onClick={() => !isReadOnly && setIsPickerOpen(true)}
             disabled={isReadOnly}
-          />
-
-          <>
-            <div className="mb-6 space-y-3 ">
-
-
-              <div className="flex items-start">
-                <div className="flex-1">
-                  <TagInput
-                    pageTags={page.tags || []}
-                    onUpdatePageTags={(newTags) => onUpdatePage(page._id, { tags: newTags })}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {editor && (
-              <BubbleMenu
-                editor={editor}
-                tippyOptions={{ duration: 100, placement: 'top-start' }}
-                className="flex items-center gap-1 bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark p-1"
-              >
-                <TextSelectionMenu
-                  editor={editor}
-                  onOpenAiPanel={() => onOpenAiPanel()}
-                  onCreatePageFromSelection={handleCreatePageFromSelection}
-                  onOpenFlashcardCreator={handleOpenFlashcardCreatorWithAI}
-                />
-              </BubbleMenu>
+            className="text-4xl block hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded p-1 bg-white dark:bg-notion-bg-dark shadow disabled:hover:bg-transparent"
+            aria-label="Add icon"
+          >
+            {page.icon ? (
+              page.icon
+            ) : (
+              <NewPageIcon className="w-8 h-8 text-notion-text-gray dark:text-notion-text-gray-dark" />
             )}
-          </>
+          </button>
+          {isPickerOpen && !isReadOnly && (
+            <div className="absolute top-0 left-0 z-10">
+              <EmojiPicker
+                onSelect={(emoji) => {
+                  onUpdatePage(page._id, { icon: emoji });
+                  setIsPickerOpen(false);
+                }}
+                onClose={() => setIsPickerOpen(false)}
+              />
+            </div>
+          )}
         </div>
 
-
-        {!isReadOnly && (
-          <>
-            <div className="mb-6 space-y-3 ">
-  
-             
-            </div>
-
-            {editor && (
-              <BubbleMenu
-                editor={editor}
-                tippyOptions={{ duration: 100, placement: 'top-start' }}
-                className="flex items-center gap-1 bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark p-1"
-              >
-                <TextSelectionMenu
-                  editor={editor}
-                  onOpenAiPanel={() => onOpenAiPanel()}
-                  onCreatePageFromSelection={handleCreatePageFromSelection}
-                  onOpenFlashcardCreator={handleOpenFlashcardCreatorWithAI}
-                />
-              </BubbleMenu>
-            )}
-          </>
+        {!page.coverImage && !isReadOnly && (
+          <button
+            onClick={() => onUpdatePage(page._id, {
+              coverImage: "https://images.unsplash.com/photo-1506744038136-46273834b3IJ?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1500&q=80"
+            })}
+            className="text-sm text-notion-text-gray dark:text-notion-text-gray-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark p-1 rounded ml-1 mt-1"
+          >
+            Add Cover
+          </button>
         )}
 
-        <EditorContent editor={editor} />
+        <textarea
+          ref={titleRef}
+          rows={1}
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            debouncedOnTitleChange(e.target.value);
+            e.currentTarget.style.height = 'auto';
+            e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+          }}
+          onBlur={() => {
+            debouncedOnTitleChange.cancel();
+            onTitleChange(title);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          placeholder="Untitled"
+          className="w-full text-4xl md:text-5xl font-bold border-none outline-none bg-transparent mb-4 placeholder-notion-text-gray/50 dark:placeholder-notion-text-gray-dark/50 mt-4 resize-none overflow-hidden"
+          disabled={isReadOnly}
+        />
 
-        <div className="h-32" />
+        {/* TAG INPUT - Solo se non read-only */}
+        {!isReadOnly && (
+          <div className="mb-6">
+            <TagInput
+              pageTags={page.tags || []}
+              onUpdatePageTags={(newTags) => onUpdatePage(page._id, { tags: newTags })}
+            />
+          </div>
+        )}
 
+        {/* BUBBLE MENU - Una sola volta, solo se non read-only */}
+        {!isReadOnly && editor && (
+          <BubbleMenu
+            editor={editor}
+            tippyOptions={{ duration: 100, placement: 'top-start' }}
+            className="flex items-center gap-1 bg-white dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark p-1"
+          >
+            <TextSelectionMenu
+              editor={editor}
+              onOpenAiPanel={() => onOpenAiPanel()}
+              onCreatePageFromSelection={handleCreatePageFromSelection}
+              onOpenFlashcardCreator={handleOpenFlashcardCreatorWithAI}
+            />
+          </BubbleMenu>
+        )}
       </div>
+
+      <EditorContent editor={editor} />
+
+      <div className="h-32" />
+
     </div>
-  );
+  </div>
+);
 });

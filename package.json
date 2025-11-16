@@ -36,6 +36,7 @@
     "fast-json-patch": "^3.1.1",
     "frimousse": "^0.3.0",
     "highlight.js": "^11.9.0",
+    "katex": "^0.16.25",
     "lodash": "^4.17.21",
     "lowlight": "^3.3.0",
     "marked": "^16.4.1",
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@babel/preset-typescript": "^7.28.5",
     "@tailwindcss/postcss": "^4.1.16",
+    "@types/katex": "^0.16.7",
     "@types/lodash": "^4.17.20",
     "@types/marked": "^6.0.0",
     "@types/node": "^22.14.0",
