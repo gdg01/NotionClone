@@ -51,13 +51,13 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   return ReactDOM.createPortal(
     // Backdrop
     <div
-      className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-all duration-300 ease-in-out ${backdropClass}`}
+      className={`fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm transition-all duration-300 ease-in-out ${backdropClass}`}
       onClick={handleBackdropClick} // Usa l'handler corretto
     >
       {/* Pannello "Bottom Sheet" */}
       <div
         ref={drawerRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 flex h-[70vh] flex-col rounded-t-2xl bg-notion-bg dark:bg-notion-bg-dark shadow-2xl transition-transform duration-300 ease-in-out ${panelClass}`}
+        className={`fixed bottom-0 left-0 right-0 z-[70] flex h-[70vh] flex-col rounded-t-2xl bg-notion-bg dark:bg-notion-bg-dark shadow-2xl transition-transform duration-300 ease-in-out ${panelClass}`}
         onClick={(e) => e.stopPropagation()} // Impedisce la chiusura cliccando sul pannello
       >
         {/* Header del Drawer */}

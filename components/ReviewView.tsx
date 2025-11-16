@@ -1,4 +1,4 @@
-// File: components/ReviewView.tsx (MODIFICATO PER FLIP E SWIPE MOBILE)
+// File: components/ReviewView.tsx (CORRETTO)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
@@ -52,13 +52,12 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   const [editFront, setEditFront] = useState("");
   const [editBack, setEditBack] = useState("");
 
-  // 3. Resetta quando il mazzo cambia (invariato)
+  // 3. & 4. Effetti (invariati)
   useEffect(() => {
     setCurrentCardIndex(0);
     setIsAnswerShown(false);
   }, [deckId]);
   
-  // 4. Sincronizza l'editor (invariato)
   useEffect(() => {
     if (currentCard) {
       setEditFront(currentCard.front);
@@ -121,7 +120,6 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     onOpenInSplitView(currentCard.sourcePageId, currentCard.sourceBlockId);
   };
 
-  // --- GESTIONE SWIPE (invariata) ---
   const onDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const { offset } = info;
     const swipeThreshold = 100;
@@ -159,7 +157,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     );
   }
 
-  // --- CLASSI CSS PER LE FACCE DELLA CARTA ---
+  // --- CLASSI CSS PER LE FACCE DELLA CARTA (invariate) ---
   const cardFaceClasses = "absolute w-full h-full p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-notion-sidebar dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark";
 
   return (
@@ -167,7 +165,8 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
       
       {/* Header fisso (invariato) */}
       <div className="absolute top-8 left-0 right-0 p-4 flex justify-between items-center">
-        <button
+        {/* ... (contenuto header invariato) ... */}
+         <button
           onClick={onClose}
           className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark flex items-center"
         >
@@ -203,14 +202,13 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
         </div>
       </div>
 
-      {/* --- MODIFICATO: Contenuto Card (Animato con Swipe e Flip) --- */}
+      {/* Contenuto Card (Animato con Swipe) */}
       <motion.div
         className="w-full max-w-3xl flex-1 flex flex-col justify-center"
-        // Le gesture di SWIPE rimangono sul container esterno
         drag={isMobile && isAnswerShown && !isEditing ? "x" : false}
         dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={onDragEnd}
-        animate={swipeControls} // Controlla l'animazione di swipe (x, opacity)
+        animate={swipeControls}
       >
         {isEditing ? (
           // --- VISTA MODIFICA (Invariata) ---
@@ -233,56 +231,60 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             </button>
           </div>
         ) : (
-          // --- NUOVO: VISTA REVISIONE (Con Flip 3D) ---
-          <div
-            className="w-full flex-1 flex items-center justify-center"
-            // 1. Aggiunge prospettiva per l'effetto 3D
-            style={{ perspective: '1000px' }}
-          >
-            {/* 2. Questo è il container che FLIPPA */}
-            <motion.div
-              className="relative w-full"
-              // Diamo una dimensione definita alla carta per il flip
-              style={{
-                transformStyle: 'preserve-3d',
-                height: '100%',
-              }}
-              // 3. Anima la rotazione Y in base allo stato (solo su mobile)
-              animate={{ rotateY: isMobile && isAnswerShown ? 180 : 0 }}
-              transition={{ duration: 0.4, ease: 'easeInOut' }}
-              // 4. Il TAP gestisce il flip (solo su mobile)
-              onClick={!isEditing && isMobile ? () => setIsAnswerShown(!isAnswerShown) : undefined}
-            >
-              {/* --- FRONTE --- */}
+          // --- *** BLOCCO CORRETTO *** ---
+          // Contenitore principale per la vista di revisione
+          <div className="w-full flex-1 flex items-center justify-center">
+            
+            {isMobile ? (
+              // --- VISTA MOBILE (Con Flip 3D) ---
               <div
-                className={cardFaceClasses}
-                style={{ backfaceVisibility: 'hidden' }}
+                className="w-full"
+                style={{ perspective: '1000px' }}
               >
-                <div className="text-3xl md:text-4xl font-semibold whitespace-pre-wrap">
-                  {currentCard.front}
-                </div>
+                <motion.div
+                  className="relative w-full"
+                  style={{
+                    transformStyle: 'preserve-3d',
+                    height: '70svh',
+                  }}
+                  // Anima la rotazione solo se la risposta è mostrata
+                  animate={{ rotateY: isAnswerShown ? 180 : 0 }}
+                  transition={{ duration: 0.4, ease: 'easeInOut' }}
+                  // Il tap gestisce il flip
+                  onClick={() => setIsAnswerShown(!isAnswerShown)}
+                >
+                  {/* FRONTE */}
+                  <div
+                    className={cardFaceClasses}
+                    style={{ backfaceVisibility: 'hidden' }}
+                  >
+                    <div className="text-3xl md:text-4xl font-semibold whitespace-pre-wrap">
+                      {currentCard.front}
+                    </div>
+                  </div>
+                  {/* RETRO */}
+                  <div
+                    className={`${cardFaceClasses} text-notion-text-gray dark:text-notion-text-gray-dark`}
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      transform: 'rotateY(180deg)',
+                    }}
+                  >
+                    <div className="text-2xl md:text-3xl whitespace-pre-wrap">
+                      {currentCard.back}
+                    </div>
+                  </div>
+                </motion.div>
               </div>
 
-              {/* --- RETRO --- */}
-              <div
-                className={`${cardFaceClasses} text-notion-text-gray dark:text-notion-text-gray-dark`}
-                style={{
-                  backfaceVisibility: 'hidden',
-                  transform: 'rotateY(180deg)',
-                }}
-              >
-                <div className="text-2xl md:text-3xl whitespace-pre-wrap">
-                  {currentCard.back}
-                </div>
-              </div>
-            </motion.div>
-
-            {/* --- VISTA DESKTOP (Mostra fronte e retro impilati) --- */}
-            {!isMobile && (
+            ) : (
+              
+              // --- VISTA DESKTOP (Impilata, senza flip) ---
               <div className="text-center">
                 <div className="text-3xl md:text-4xl font-semibold mb-8 min-h-[100px] whitespace-pre-wrap">
                   {currentCard.front}
                 </div>
+                
                 {isAnswerShown && (
                   <>
                     <div className="w-full h-px bg-notion-border dark:bg-notion-border-dark my-8"></div>
@@ -293,16 +295,17 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
                 )}
               </div>
             )}
+            
           </div>
         )}
       </motion.div>
 
-      {/* --- MODIFICATO: Footer Azioni --- */}
+      {/* Footer Azioni (Invariato, la logica !isMobile è già corretta) */}
       <div className="w-full max-w-3xl pt-8">
         {!isEditing && (
           isAnswerShown ? (
             <>
-              {/* --- Pulsanti Valutazione (SOLO DESKTOP) --- */}
+              {/* Pulsanti Valutazione (SOLO DESKTOP) */}
               {!isMobile && (
                 <div className="grid grid-cols-2 gap-4">
                   <button
@@ -320,7 +323,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
                 </div>
               )}
               
-              {/* --- Istruzioni Swipe (SOLO MOBILE) --- */}
+              {/* Istruzioni Swipe (SOLO MOBILE) */}
               {isMobile && (
                 <div className="text-center text-lg text-notion-text-gray dark:text-notion-text-gray-dark p-4">
                   Swipe per 'Sbagliato' (sinistra) o 'Giusto' (destra)
@@ -328,7 +331,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
               )}
             </>
           ) : (
-            // --- Pulsante Mostra Risposta (Desktop) o Istruzione (Mobile) ---
+            // Pulsante Mostra Risposta (Desktop) o Istruzione (Mobile)
             isMobile ? (
               <div className="text-center text-lg text-notion-text-gray dark:text-notion-text-gray-dark p-4">
                 Tocca la carta per girarla
