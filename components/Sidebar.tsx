@@ -1,5 +1,5 @@
 // File: src/components/Sidebar.tsx
-// (SOSTITUZIONE COMPLETA - Con fix colori testo drawer mobile)
+// (SOSTITUZIONE COMPLETA - Con chiusura automatica su mobile)
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { Page } from '../App';
@@ -69,7 +69,7 @@ interface PageItemProps {
   onOpenMobileDrawer: (page: PageWithChildren) => void;
 }
 
-// --- Componente PageItem (invariato) ---
+// --- Componente PageItem (INVARIATO) ---
 const PageItem: React.FC<PageItemProps> = ({
   page,
   level,
@@ -126,7 +126,7 @@ const PageItem: React.FC<PageItemProps> = ({
     if (e.metaKey || e.ctrlKey) {
       onOpenInSplitView(page._id);
     } else {
-      onSelectPage(page._id);
+      onSelectPage(page._id); // <-- Questo ora chiamerà la nostra nuova funzione
     }
   };
 
@@ -289,7 +289,7 @@ const PageItem: React.FC<PageItemProps> = ({
                 level={level + 1}
                 onAddPage={onAddPage}
                 onDeletePage={onDeletePage}
-                onSelectPage={onSelectPage}
+                onSelectPage={onSelectPage} // Passa la funzione (ora "avvolta")
                 onOpenInSplitView={onOpenInSplitView}
                 onUpdatePage={onUpdatePage}
                 activePageId={activePageId}
@@ -306,7 +306,7 @@ const PageItem: React.FC<PageItemProps> = ({
                 level={level + 1}
                 onAddPage={onAddPage}
                 onDeletePage={onDeletePage}
-                onSelectPage={onSelectPage}
+                onSelectPage={onSelectPage} // Passa la funzione (ora "avvolta")
                 onOpenInSplitView={onOpenInSplitView}
                 onUpdatePage={onUpdatePage}
                 activePageId={activePageId}
@@ -321,7 +321,7 @@ const PageItem: React.FC<PageItemProps> = ({
   );
 };
 
-// --- Componente Sidebar Principale (invariato tranne il contenuto del drawer) ---
+// --- Componente Sidebar Principale (MODIFICATO) ---
 export const Sidebar: React.FC<SidebarProps> = ({
   onAddPage,
   onDeletePage,
@@ -351,6 +351,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleCloseDrawer = () => {
     setDrawerPage(null);
   };
+
+  // --- 1. NUOVA FUNZIONE WRAPPER ---
+  const handleSelectPageAndCloseMobile = (pageId: string) => {
+    // Chiama la funzione originale passata come prop (da App.tsx)
+    onSelectPage(pageId);
+
+    // Controlla la larghezza della finestra (768px è il breakpoint 'md' di Tailwind)
+    if (window.innerWidth < 768) {
+      setIsOpen(false);
+    }
+  };
+  // --- FINE NUOVA FUNZIONE ---
 
   return (
     <>
@@ -387,7 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   level={0}
                   onAddPage={onAddPage}
                   onDeletePage={onDeletePage}
-                  onSelectPage={onSelectPage}
+                  onSelectPage={handleSelectPageAndCloseMobile} // <-- 2. USA LA NUOVA FUNZIONE
                   onOpenInSplitView={onOpenInSplitView}
                   onUpdatePage={onUpdatePage}
                   activePageId={activePageId}
@@ -414,7 +426,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   level={0}
                   onAddPage={onAddPage}
                   onDeletePage={onDeletePage}
-                  onSelectPage={onSelectPage}
+                  onSelectPage={handleSelectPageAndCloseMobile} // <-- 3. USA LA NUOVA FUNZIONE
                   onOpenInSplitView={onOpenInSplitView}
                   onUpdatePage={onUpdatePage}
                   activePageId={activePageId}
@@ -427,7 +439,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </nav>
 
+        {/* Footer (invariato) */}
         <div className="p-2 border-t border-notion-border dark:border-notion-border-dark">
+          {/* ... (pulsanti footer) ... */}
           <div className="flex items-center space-x-2">
             <button
               onClick={() => onAddPage(null)}
@@ -448,7 +462,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
           </div>
-
           <div className="mt-1 flex items-center justify-around">
             <button
               onClick={onOpenGraphView}
@@ -482,7 +495,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </aside>
 
-      {/* --- Contenuto del Drawer (MODIFICATO) --- */}
+      {/* Drawer (invariato) */}
       <MobileDrawer
         isOpen={drawerPage !== null}
         onClose={handleCloseDrawer}
@@ -490,7 +503,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {drawerPage && (
           <div className="flex flex-col space-y-1 p-2">
-            {/* Pulsante Fissa/Sblocca (stile mobile) */}
             <button
               onClick={(e) => {
                 onUpdatePage(drawerPage._id, {
@@ -498,9 +510,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 });
                 handleCloseDrawer();
               }}
-              // --- MODIFICA QUI ---
               className="w-full flex items-center text-left px-2 py-3 text-base rounded text-notion-text dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
-              // --- FINE MODIFICA ---
             >
               {drawerPage.isPinned ? (
                 <PinOffIcon className="w-5 h-5 mr-3 text-blue-500" />
@@ -509,39 +519,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
               {drawerPage.isPinned ? 'Sblocca dalla cima' : 'Fissa in cima'}
             </button>
-
-            {/* Pulsante Aggiungi Sottopagina (stile mobile) */}
             <button
               onClick={(e) => {
                 onAddPage(drawerPage._id);
                 handleCloseDrawer();
               }}
-              // --- MODIFICA QUI ---
               className="w-full flex items-center text-left px-2 py-3 text-base rounded text-notion-text dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
-              // --- FINE MODIFICA ---
             >
               <AddPageIcon className="w-5 h-5 mr-3" />
               Aggiungi sottopagina
             </button>
-
-            {/* Pulsante Visualizza Flusso (stile mobile) */}
             <button
               onClick={(e) => {
                 onOpenFlowView(drawerPage._id);
                 handleCloseDrawer();
               }}
-              // --- MODIFICA QUI ---
               className="w-full flex items-center text-left px-2 py-3 text-base rounded text-notion-text dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
-              // --- FINE MODIFICA ---
             >
               <FilterIcon className="w-5 h-5 mr-3" />
               Visualizza flusso
             </button>
-
-            {/* Separatore */}
             <div className="border-t border-notion-border dark:border-notion-border-dark my-1 mx-1"></div>
-
-            {/* Pulsante Elimina (stile mobile) - Invariato */}
             <button
               onClick={(e) => {
                 onDeletePage(drawerPage._id);
@@ -555,7 +553,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </MobileDrawer>
-      {/* --- FINE SPOSTAMENTO DRAWER --- */}
     </>
   );
 };
