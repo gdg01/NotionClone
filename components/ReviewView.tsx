@@ -245,8 +245,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
               // Diamo una dimensione definita alla carta per il flip
               style={{
                 transformStyle: 'preserve-3d',
-                height: '40vh',
-                maxHeight: '400px',
+                height: '100%',
               }}
               // 3. Anima la rotazione Y in base allo stato (solo su mobile)
               animate={{ rotateY: isMobile && isAnswerShown ? 180 : 0 }}
