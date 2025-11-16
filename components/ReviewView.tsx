@@ -1,11 +1,11 @@
-// File: components/ReviewView.tsx (COMPLETAMENTE MODIFICATO)
+// File: components/ReviewView.tsx (MODIFICATO PER FLIP E SWIPE MOBILE)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import type { Doc } from '../convex/_generated/dataModel';
-import { ArrowLeftIcon, EditIcon, LinkIcon, SaveIcon, TrashIcon } from './icons'; // Aggiunto TrashIcon
-import { motion, useAnimation, PanInfo } from 'framer-motion'; // Import per swipe
+import { ArrowLeftIcon, EditIcon, LinkIcon, SaveIcon, TrashIcon } from './icons';
+import { motion, useAnimation, PanInfo } from 'framer-motion';
 
 interface ReviewViewProps {
   deckId: string;
@@ -14,7 +14,7 @@ interface ReviewViewProps {
   onOpenInSplitView: (pageId: string, blockId: string | null) => void;
 }
 
-// Hook utility per rilevare mobile (semplice)
+// Hook utility per rilevare mobile (invariato)
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
@@ -31,35 +31,34 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   onClose,
   onOpenInSplitView,
 }) => {
-  // 1. Ottieni carte e mutazioni (Aggiunto deleteCard)
+  // 1. Ottieni carte e mutazioni (invariato)
   const dueCards = useQuery(api.flashcards.listDueCards, { deckId, deckType });
   const reviewCard = useMutation(api.flashcards.reviewCard);
   const updateCard = useMutation(api.flashcards.update);
-  const deleteCard = useMutation(api.flashcards.deleteCard); // NUOVO
+  const deleteCard = useMutation(api.flashcards.deleteCard);
 
-  // 2. Stato locale
+  // 2. Stato locale (invariato)
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isAnswerShown, setIsAnswerShown] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const isMobile = useIsMobile();
-  const swipeControls = useAnimation(); // Per animazione swipe
+  const swipeControls = useAnimation();
 
   const currentCard = useMemo(() => {
     if (!dueCards || dueCards.length === 0) return null;
     return dueCards[currentCardIndex % dueCards.length];
   }, [dueCards, currentCardIndex]);
 
-  // Stato per l'editing
   const [editFront, setEditFront] = useState("");
   const [editBack, setEditBack] = useState("");
 
-  // 3. Resetta quando il mazzo cambia
+  // 3. Resetta quando il mazzo cambia (invariato)
   useEffect(() => {
     setCurrentCardIndex(0);
     setIsAnswerShown(false);
   }, [deckId]);
   
-  // 4. Sincronizza l'editor
+  // 4. Sincronizza l'editor (invariato)
   useEffect(() => {
     if (currentCard) {
       setEditFront(currentCard.front);
@@ -73,18 +72,16 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     if (dueCards && currentCardIndex >= dueCards.length - 1) {
       setCurrentCardIndex(0);
     }
-    // Resetta l'animazione di swipe
     if (resetAnimation) {
       swipeControls.start({ x: 0, opacity: 1, transition: { duration: 0 } });
     }
   };
 
-  // --- LOGICA MODIFICATA ---
+  // --- LOGICA (invariata) ---
 
   const handleReview = async (rating: "wrong" | "right") => {
     if (!currentCard) return;
     try {
-      // 1. Anima l'uscita (solo su mobile per lo swipe)
       if (isMobile) {
         await swipeControls.start({
           x: rating === 'right' ? 300 : -300,
@@ -93,15 +90,10 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
         });
       }
       
-      // 2. Invia la revisione
       await reviewCard({ cardId: currentCard._id, rating });
-      
-      // 3. Vai alla prossima card (senza resettare l'animazione, lo fa handleNextCard)
-      handleNextCard(true); // handleNextCard ora resetta l'animazione
-
+      handleNextCard(true);
     } catch (e) {
       console.error("Errore durante la revisione:", e);
-      // Se fallisce, rimetti la card a posto
       swipeControls.start({ x: 0, opacity: 1 });
     }
   };
@@ -117,7 +109,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     if (window.confirm("Sei sicuro di voler eliminare questa flashcard? L'azione è irreversibile.")) {
       try {
         await deleteCard({ cardId: currentCard._id });
-        handleNextCard(false); // Vai alla prossima senza animazione di swipe
+        handleNextCard(false);
       } catch (e) {
         console.error("Errore durante l'eliminazione:", e);
       }
@@ -129,17 +121,16 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     onOpenInSplitView(currentCard.sourcePageId, currentCard.sourceBlockId);
   };
 
-  // --- GESTIONE SWIPE (Framer Motion) ---
+  // --- GESTIONE SWIPE (invariata) ---
   const onDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const { offset, velocity } = info;
-    const swipeThreshold = 100; // Pixel per attivare lo swipe
+    const { offset } = info;
+    const swipeThreshold = 100;
 
     if (offset.x > swipeThreshold) {
-      handleReview("right"); // Swipe a destra
+      handleReview("right");
     } else if (offset.x < -swipeThreshold) {
-      handleReview("wrong"); // Swipe a sinistra
+      handleReview("wrong");
     } else {
-      // Ritorna al centro se lo swipe non è sufficiente
       swipeControls.start({ x: 0 });
     }
   };
@@ -151,6 +142,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   }
 
   if (!currentCard) {
+    // Schermata "Mazzo Completato" (invariata)
     return (
       <div className="h-full w-full flex flex-col items-center justify-center text-center p-8">
         <h2 className="text-2xl font-bold mb-4">Mazzo Completato! 🎉</h2>
@@ -167,10 +159,13 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     );
   }
 
+  // --- CLASSI CSS PER LE FACCE DELLA CARTA ---
+  const cardFaceClasses = "absolute w-full h-full p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-notion-sidebar dark:bg-notion-sidebar-dark rounded-lg shadow-lg border border-notion-border dark:border-notion-border-dark";
+
   return (
     <div className="h-full w-full relative flex flex-col items-center p-4 pt-24 pb-8 overflow-y-auto bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark">
       
-      {/* Header fisso (Aggiunto bottone elimina) */}
+      {/* Header fisso (invariato) */}
       <div className="absolute top-8 left-0 right-0 p-4 flex justify-between items-center">
         <button
           onClick={onClose}
@@ -196,7 +191,6 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
           >
             {isEditing ? <SaveIcon className="w-5 h-5" /> : <EditIcon className="w-5 h-5" />}
           </button>
-          {/* Pulsante Elimina (visibile solo in modifica) */}
           {isEditing && (
              <button
               onClick={handleDelete}
@@ -209,17 +203,17 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
         </div>
       </div>
 
-      {/* Contenuto Card (Animato con Framer Motion) */}
+      {/* --- MODIFICATO: Contenuto Card (Animato con Swipe e Flip) --- */}
       <motion.div
         className="w-full max-w-3xl flex-1 flex flex-col justify-center"
-        // Attiva lo swipe solo su mobile E dopo che la risposta è mostrata
+        // Le gesture di SWIPE rimangono sul container esterno
         drag={isMobile && isAnswerShown && !isEditing ? "x" : false}
-        dragConstraints={{ left: 0, right: 0 }} // Permette solo il drag orizzontale
+        dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={onDragEnd}
-        animate={swipeControls} // Controlla l'animazione di swipe
+        animate={swipeControls} // Controlla l'animazione di swipe (x, opacity)
       >
         {isEditing ? (
-          // --- VISTA MODIFICA (Invariata, tranne stile) ---
+          // --- VISTA MODIFICA (Invariata) ---
           <div className="space-y-4">
             <textarea
               value={editFront}
@@ -239,46 +233,101 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             </button>
           </div>
         ) : (
-          // --- VISTA REVISIONE (Con click-to-flip) ---
-          <div 
-            className="text-center cursor-pointer"
-            onClick={isMobile && !isAnswerShown ? () => setIsAnswerShown(true) : undefined}
+          // --- NUOVO: VISTA REVISIONE (Con Flip 3D) ---
+          <div
+            className="w-full flex-1 flex items-center justify-center"
+            // 1. Aggiunge prospettiva per l'effetto 3D
+            style={{ perspective: '1000px' }}
           >
-            <div className="text-3xl md:text-4xl font-semibold mb-8 min-h-[100px] whitespace-pre-wrap">
-              {currentCard.front}
-            </div>
-            
-            {isAnswerShown && (
-              <>
-                <div className="w-full h-px bg-notion-border dark:bg-notion-border-dark my-8"></div>
-                <div className="text-2xl md:text-3xl text-notion-text-gray dark:text-notion-text-gray-dark min-h-[100px] whitespace-pre-wrap">
+            {/* 2. Questo è il container che FLIPPA */}
+            <motion.div
+              className="relative w-full"
+              // Diamo una dimensione definita alla carta per il flip
+              style={{
+                transformStyle: 'preserve-3d',
+                height: '40vh',
+                maxHeight: '400px',
+              }}
+              // 3. Anima la rotazione Y in base allo stato (solo su mobile)
+              animate={{ rotateY: isMobile && isAnswerShown ? 180 : 0 }}
+              transition={{ duration: 0.4, ease: 'easeInOut' }}
+              // 4. Il TAP gestisce il flip (solo su mobile)
+              onClick={!isEditing && isMobile ? () => setIsAnswerShown(!isAnswerShown) : undefined}
+            >
+              {/* --- FRONTE --- */}
+              <div
+                className={cardFaceClasses}
+                style={{ backfaceVisibility: 'hidden' }}
+              >
+                <div className="text-3xl md:text-4xl font-semibold whitespace-pre-wrap">
+                  {currentCard.front}
+                </div>
+              </div>
+
+              {/* --- RETRO --- */}
+              <div
+                className={`${cardFaceClasses} text-notion-text-gray dark:text-notion-text-gray-dark`}
+                style={{
+                  backfaceVisibility: 'hidden',
+                  transform: 'rotateY(180deg)',
+                }}
+              >
+                <div className="text-2xl md:text-3xl whitespace-pre-wrap">
                   {currentCard.back}
                 </div>
-              </>
+              </div>
+            </motion.div>
+
+            {/* --- VISTA DESKTOP (Mostra fronte e retro impilati) --- */}
+            {!isMobile && (
+              <div className="text-center">
+                <div className="text-3xl md:text-4xl font-semibold mb-8 min-h-[100px] whitespace-pre-wrap">
+                  {currentCard.front}
+                </div>
+                {isAnswerShown && (
+                  <>
+                    <div className="w-full h-px bg-notion-border dark:bg-notion-border-dark my-8"></div>
+                    <div className="text-2xl md:text-3xl text-notion-text-gray dark:text-notion-text-gray-dark min-h-[100px] whitespace-pre-wrap">
+                      {currentCard.back}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}
       </motion.div>
 
-      {/* Footer Azioni (MODIFICATO) */}
+      {/* --- MODIFICATO: Footer Azioni --- */}
       <div className="w-full max-w-3xl pt-8">
         {!isEditing && (
           isAnswerShown ? (
-            // --- Pulsanti Valutazione (Giusto/Sbagliato) ---
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleReview("wrong")}
-                className="p-4 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2"
-              >
-                Sbagliato
-              </button>
-              <button
-                onClick={() => handleReview("right")}
-                className="p-4 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
-              >
-                Giusto
-              </button>
-            </div>
+            <>
+              {/* --- Pulsanti Valutazione (SOLO DESKTOP) --- */}
+              {!isMobile && (
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleReview("wrong")}
+                    className="p-4 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2"
+                  >
+                    Sbagliato
+                  </button>
+                  <button
+                    onClick={() => handleReview("right")}
+                    className="p-4 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    Giusto
+                  </button>
+                </div>
+              )}
+              
+              {/* --- Istruzioni Swipe (SOLO MOBILE) --- */}
+              {isMobile && (
+                <div className="text-center text-lg text-notion-text-gray dark:text-notion-text-gray-dark p-4">
+                  Swipe per 'Sbagliato' (sinistra) o 'Giusto' (destra)
+                </div>
+              )}
+            </>
           ) : (
             // --- Pulsante Mostra Risposta (Desktop) o Istruzione (Mobile) ---
             isMobile ? (

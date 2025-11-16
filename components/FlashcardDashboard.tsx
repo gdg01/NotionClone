@@ -4,10 +4,9 @@ import React from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import type { DeckSummary } from '../convex/flashcards';
-import { ArrowLeftIcon, PageIcon } from './icons'; 
+import { ArrowLeftIcon, PageIcon } from './icons'; // PageIcon non è più usato, ma lo lascio per ora
 import { DeckFolderIcon } from './DeckFolderIcon';
 
-// ... (FlashcardDashboardProps e FOLDER_COLORS invariati) ...
 interface FlashcardDashboardProps {
   onStartReview: (deckId: string, type: 'page' | 'tag') => void;
   onClose: () => void;
@@ -24,18 +23,20 @@ const FOLDER_COLORS = [
   'text-blue-600',
   'text-indigo-500',
 ];
+
 // --- Componente DeckFolder (Modificato) ---
 
 interface DeckFolderProps {
   summary: DeckSummary;
   onStartReview: (deckId: string, type: 'page' | 'tag') => void;
-  onSelectPage: (pageId: string) => void; 
+  onSelectPage: (pageId: string) => void; // Prop non più usata ma mantenuta per coerenza
   color: string;
 }
 
 const DeckFolder: React.FC<DeckFolderProps> = ({
   summary,
   onStartReview,
+  // onSelectPage non è più usato qui
   color,
 }) => {
   const { deckId, deckName, deckIcon, type, counts } = summary;
@@ -47,12 +48,16 @@ const DeckFolder: React.FC<DeckFolderProps> = ({
     }
   };
 
+  // handlePageClick rimosso perché il pulsante non c'è più
+
   return (
     <button
       onClick={handleStudyClick}
       disabled={!hasDueCards}
-      // MODIFICA: Cambiato 'h-40' in 'aspect-square' per proporzioni corrette
-      className={`relative w-full aspect-square text-left 
+      // MODIFICA 1: Allineamento
+      // Cambiato da 'items-center justify-center' a 'items-start justify-between'
+      // per allineare a sinistra e distribuire in alto/basso.
+      className={`relative w-full h-40 text-left 
                   transition-all hover:-translate-y-1 
                   disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0
                   focus:outline-none focus:ring-2 focus:ring-blue-500 
@@ -60,30 +65,38 @@ const DeckFolder: React.FC<DeckFolderProps> = ({
                   flex flex-col items-start justify-between p-4
                  `}
     >
-      {/* Icona SVG come sfondo (Invariato) */}
+      {/* 4. Icona SVG come sfondo (Invariato) */}
       <DeckFolderIcon
         className="absolute inset-0 w-full h-full z-0 
                    drop-shadow-lg group-hover:drop-shadow-xl transition-all"
-        tabClassName={color} 
-        bodyClassName="text-notion-sidebar dark:text-notion-sidebar-dark"
+        tabClassName={color} // Colore dinamico per la linguetta
+        bodyClassName="text-notion-sidebar dark:text-notion-sidebar-dark" // Colore del corpo
       />
 
-      {/* Contenuto (z-10, sopra lo sfondo) (Invariato) */}
+      {/* 5. Pulsante Pagina (MODIFICA 2: RIMOSSO) */}
+      {/* Blocco rimosso */}
+
+      {/* 6. Contenuto (z-10, sopra lo sfondo) */}
+      {/* MODIFICA 1: Allineamento (rimosso items-center, text-center, mb-10) */}
       <div className="relative z-10 flex flex-col items-start text-left">
         <span className="text-3xl mb-2">{deckIcon}</span>
+        {/* MODIFICA 3: Colore (era già corretto) */}
         <h3 className="font-semibold text-lg truncate text-notion-text dark:text-notion-text-dark">
           {deckName}
         </h3>
       </div>
 
-      {/* Statistiche (z-10, sopra lo sfondo) (Invariato) */}
+      {/* 7. Statistiche (z-10, sopra lo sfondo) */}
+      {/* MODIFICA 1: Allineamento (rimosso absolute, text-center) */}
       <div className="relative z-10 text-left">
+        {/* MODIFICA 3: Colore (cambiato da text-blue-500) */}
         <div
           className="text-2xl font-bold text-notion-text dark:text-notion-text-dark"
           title="Carte Scadute (da rivedere)"
         >
           {counts.due}
         </div>
+        {/* MODIFICA 3: Colore (cambiato da text-notion-text-gray e aggiunto opacity) */}
         <div className="text-xs text-notion-text dark:text-notion-text-dark opacity-70">
           {counts.new} Nuove / {counts.learning} In Appr.
         </div>
@@ -93,13 +106,13 @@ const DeckFolder: React.FC<DeckFolderProps> = ({
 };
 
 
-// --- Dashboard Principale (invariato) ---
+// --- Dashboard Principale (il resto è invariato) ---
+
 export const FlashcardDashboard: React.FC<FlashcardDashboardProps> = ({
   onStartReview,
   onClose,
   onSelectPage,
 }) => {
-  // ... (logica e render invariati)
   const summaries = useQuery(api.flashcards.getDeckSummaries);
 
   return (
@@ -140,7 +153,7 @@ export const FlashcardDashboard: React.FC<FlashcardDashboardProps> = ({
                 key={summary.deckId}
                 summary={summary}
                 onStartReview={onStartReview}
-                onSelectPage={onSelectPage} 
+                onSelectPage={onSelectPage} // La prop viene passata, ma il componente figlio non la usa più
                 color={FOLDER_COLORS[index % FOLDER_COLORS.length]}
               />
             ))}
