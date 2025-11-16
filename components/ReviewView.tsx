@@ -1,10 +1,11 @@
-// File: components/ReviewView.tsx (MODIFICATO E COMPLETO)
+// File: components/ReviewView.tsx (COMPLETAMENTE MODIFICATO)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import type { Doc } from '../convex/_generated/dataModel';
-import { ArrowLeftIcon, EditIcon, LinkIcon, SaveIcon } from './icons';
+import { ArrowLeftIcon, EditIcon, LinkIcon, SaveIcon, TrashIcon } from './icons'; // Aggiunto TrashIcon
+import { motion, useAnimation, PanInfo } from 'framer-motion'; // Import per swipe
 
 interface ReviewViewProps {
   deckId: string;
@@ -13,22 +14,36 @@ interface ReviewViewProps {
   onOpenInSplitView: (pageId: string, blockId: string | null) => void;
 }
 
+// Hook utility per rilevare mobile (semplice)
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  return isMobile;
+};
+
 export const ReviewView: React.FC<ReviewViewProps> = ({
   deckId,
   deckType,
   onClose,
   onOpenInSplitView,
 }) => {
-  // 1. Ottieni solo le carte scadute
+  // 1. Ottieni carte e mutazioni (Aggiunto deleteCard)
   const dueCards = useQuery(api.flashcards.listDueCards, { deckId, deckType });
   const reviewCard = useMutation(api.flashcards.reviewCard);
   const updateCard = useMutation(api.flashcards.update);
+  const deleteCard = useMutation(api.flashcards.deleteCard); // NUOVO
 
   // 2. Stato locale
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isAnswerShown, setIsAnswerShown] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  
+  const isMobile = useIsMobile();
+  const swipeControls = useAnimation(); // Per animazione swipe
+
   const currentCard = useMemo(() => {
     if (!dueCards || dueCards.length === 0) return null;
     return dueCards[currentCardIndex % dueCards.length];
@@ -38,13 +53,13 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   const [editFront, setEditFront] = useState("");
   const [editBack, setEditBack] = useState("");
 
-  // 3. Resetta quando il mazzo cambia o finisce
+  // 3. Resetta quando il mazzo cambia
   useEffect(() => {
     setCurrentCardIndex(0);
     setIsAnswerShown(false);
   }, [deckId]);
   
-  // 4. Sincronizza l'editor quando si apre
+  // 4. Sincronizza l'editor
   useEffect(() => {
     if (currentCard) {
       setEditFront(currentCard.front);
@@ -52,26 +67,42 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     }
   }, [currentCard, isEditing]);
 
-  const handleNextCard = () => {
+  const handleNextCard = (resetAnimation = true) => {
     setIsAnswerShown(false);
     setIsEditing(false);
-    // Nota: Non incrementiamo l'indice. La lista `dueCards`
-    // si restringerà automaticamente grazie a Convex.
-    // Se la lista è ancora piena, l'indice 0 mostrerà la prossima carta.
-    // Se l'indice è fuori range, il memo lo riporterà a 0.
     if (dueCards && currentCardIndex >= dueCards.length - 1) {
       setCurrentCardIndex(0);
     }
+    // Resetta l'animazione di swipe
+    if (resetAnimation) {
+      swipeControls.start({ x: 0, opacity: 1, transition: { duration: 0 } });
+    }
   };
 
-  const handleReview = async (rating: 0 | 1 | 2 | 3) => {
+  // --- LOGICA MODIFICATA ---
+
+  const handleReview = async (rating: "wrong" | "right") => {
     if (!currentCard) return;
     try {
+      // 1. Anima l'uscita (solo su mobile per lo swipe)
+      if (isMobile) {
+        await swipeControls.start({
+          x: rating === 'right' ? 300 : -300,
+          opacity: 0,
+          transition: { duration: 0.2 }
+        });
+      }
+      
+      // 2. Invia la revisione
       await reviewCard({ cardId: currentCard._id, rating });
-      // La reattività di Convex farà il resto.
-      handleNextCard();
+      
+      // 3. Vai alla prossima card (senza resettare l'animazione, lo fa handleNextCard)
+      handleNextCard(true); // handleNextCard ora resetta l'animazione
+
     } catch (e) {
       console.error("Errore durante la revisione:", e);
+      // Se fallisce, rimetti la card a posto
+      swipeControls.start({ x: 0, opacity: 1 });
     }
   };
   
@@ -81,9 +112,36 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     setIsEditing(false);
   };
 
+  const handleDelete = async () => {
+    if (!currentCard) return;
+    if (window.confirm("Sei sicuro di voler eliminare questa flashcard? L'azione è irreversibile.")) {
+      try {
+        await deleteCard({ cardId: currentCard._id });
+        handleNextCard(false); // Vai alla prossima senza animazione di swipe
+      } catch (e) {
+        console.error("Errore durante l'eliminazione:", e);
+      }
+    }
+  };
+
   const handleShowContext = () => {
     if (!currentCard || !currentCard.sourceBlockId) return;
     onOpenInSplitView(currentCard.sourcePageId, currentCard.sourceBlockId);
+  };
+
+  // --- GESTIONE SWIPE (Framer Motion) ---
+  const onDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const { offset, velocity } = info;
+    const swipeThreshold = 100; // Pixel per attivare lo swipe
+
+    if (offset.x > swipeThreshold) {
+      handleReview("right"); // Swipe a destra
+    } else if (offset.x < -swipeThreshold) {
+      handleReview("wrong"); // Swipe a sinistra
+    } else {
+      // Ritorna al centro se lo swipe non è sufficiente
+      swipeControls.start({ x: 0 });
+    }
   };
 
   // --- Render ---
@@ -109,13 +167,10 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     );
   }
 
-  // --- MODIFICA PRINCIPALE ---
-  // Aggiunto 'relative', 'overflow-y-auto' e 'pt-24' (padding-top)
-  // per permettere lo scroll e lasciare spazio all'header 'absolute'.
   return (
     <div className="h-full w-full relative flex flex-col items-center p-4 pt-24 pb-8 overflow-y-auto bg-notion-bg dark:bg-notion-bg-dark text-notion-text dark:text-notion-text-dark">
       
-      {/* Header fisso (rimane absolute) */}
+      {/* Header fisso (Aggiunto bottone elimina) */}
       <div className="absolute top-8 left-0 right-0 p-4 flex justify-between items-center">
         <button
           onClick={onClose}
@@ -141,13 +196,30 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
           >
             {isEditing ? <SaveIcon className="w-5 h-5" /> : <EditIcon className="w-5 h-5" />}
           </button>
+          {/* Pulsante Elimina (visibile solo in modifica) */}
+          {isEditing && (
+             <button
+              onClick={handleDelete}
+              className="p-2 rounded-md text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50"
+              title="Elimina Card"
+            >
+              <TrashIcon className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Contenuto Card */}
-      <div className="w-full max-w-3xl flex-1 flex flex-col justify-center">
+      {/* Contenuto Card (Animato con Framer Motion) */}
+      <motion.div
+        className="w-full max-w-3xl flex-1 flex flex-col justify-center"
+        // Attiva lo swipe solo su mobile E dopo che la risposta è mostrata
+        drag={isMobile && isAnswerShown && !isEditing ? "x" : false}
+        dragConstraints={{ left: 0, right: 0 }} // Permette solo il drag orizzontale
+        onDragEnd={onDragEnd}
+        animate={swipeControls} // Controlla l'animazione di swipe
+      >
         {isEditing ? (
-          // --- VISTA MODIFICA ---
+          // --- VISTA MODIFICA (Invariata, tranne stile) ---
           <div className="space-y-4">
             <textarea
               value={editFront}
@@ -167,8 +239,11 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             </button>
           </div>
         ) : (
-          // --- VISTA REVISIONE ---
-          <div className="text-center">
+          // --- VISTA REVISIONE (Con click-to-flip) ---
+          <div 
+            className="text-center cursor-pointer"
+            onClick={isMobile && !isAnswerShown ? () => setIsAnswerShown(true) : undefined}
+          >
             <div className="text-3xl md:text-4xl font-semibold mb-8 min-h-[100px] whitespace-pre-wrap">
               {currentCard.front}
             </div>
@@ -183,47 +258,41 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             )}
           </div>
         )}
-      </div>
+      </motion.div>
 
-      {/* Footer Azioni */}
+      {/* Footer Azioni (MODIFICATO) */}
       <div className="w-full max-w-3xl pt-8">
         {!isEditing && (
           isAnswerShown ? (
-            // --- Pulsanti Valutazione (già mobile-friendly) ---
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            // --- Pulsanti Valutazione (Giusto/Sbagliato) ---
+            <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => handleReview(0)}
-                className="p-4 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700"
+                onClick={() => handleReview("wrong")}
+                className="p-4 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2"
               >
-                Sbagliato (1m)
+                Sbagliato
               </button>
               <button
-                onClick={() => handleReview(1)}
-                className="p-4 rounded-lg font-semibold text-white bg-orange-500 hover:bg-orange-600"
+                onClick={() => handleReview("right")}
+                className="p-4 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
               >
-                Difficile (10m)
-              </button>
-              <button
-                onClick={() => handleReview(2)}
-                className="p-4 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700"
-              >
-                OK (1g)
-              </button>
-              <button
-                onClick={() => handleReview(3)}
-                className="p-4 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Facile (4g)
+                Giusto
               </button>
             </div>
           ) : (
-            // --- Pulsante Mostra Risposta ---
-            <button
-              onClick={() => setIsAnswerShown(true)}
-              className="w-full px-6 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-md hover:bg-blue-700"
-            >
-              Mostra Risposta
-            </button>
+            // --- Pulsante Mostra Risposta (Desktop) o Istruzione (Mobile) ---
+            isMobile ? (
+              <div className="text-center text-lg text-notion-text-gray dark:text-notion-text-gray-dark p-4">
+                Tocca la carta per girarla
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAnswerShown(true)}
+                className="w-full px-6 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-md hover:bg-blue-700"
+              >
+                Mostra Risposta
+              </button>
+            )
           )
         )}
       </div>

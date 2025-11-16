@@ -1,4 +1,4 @@
-// components/Editor.tsx (Corretto - Rimosso 'databaseView' da UniqueID)
+// components/Editor.tsx (MODIFICATO per Flashcard Inline)
 
 import React, {
   useState,
@@ -67,8 +67,13 @@ import { getTagClasses, TAG_COLORS } from '../lib/TG';
 import { Doc, Id } from '../convex/_generated/dataModel';
 import { useMobileDrawerData } from '../context/MobileDrawerContext';
 import { DatabaseView } from '../extensions/DatabaseView';
-import { FlashcardSyntax } from '../extensions/FlashcardSyntax'; // Nuova estensione Tiptap
+// --- MODIFICA 1: Rimuovi la vecchia 'FlashcardSyntax' se è un file separato ---
+// (L'import rimane se hai modificato il file extensions/FlashcardSyntax.ts)
+import { FlashcardSyntax } from '../extensions/FlashcardSyntax'; 
 import { InlineMath } from '../extensions/InlineMath';
+
+// --- MODIFICA 2: Importa il NUOVO NODO ---
+import { InlineFlashcard } from '../extensions/InlineFlashcard'; 
 
 // --- TagInput (Invariato) ---
 interface TagInputProps {
@@ -1050,11 +1055,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  // --- MODIFICA CHIAVE: Importa le mutazioni ---
+  // --- MODIFICA 3: Rimuovi `upsertFlashcardSyntax` ---
   const createPage = useMutation(api.pages.create);
   const generateFlashcardAI = useAction(api.ai.generateFlashcard);
-  const upsertFlashcardSyntax = useMutation(api.flashcards.upsertFromSyntax);
-  // --- FINE MODIFICA ---
+  // const upsertFlashcardSyntax = useMutation(api.flashcards.upsertFromSyntax); // <-- RIMOSSO
 
   const { setMobileData } = !isReadOnly
     ? useMobileDrawerData()
@@ -1154,6 +1158,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           
         }),
         InlineMath,
+        // --- MODIFICA 4: Aggiungi il nuovo Nodo ---
+        InlineFlashcard, // Aggiunto il nodo
         ColumnDragHandler,
         Dropcursor.configure({ color: '#60A5FA', width: 2 }),
         Paragraph.extend({
@@ -1185,6 +1191,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             'horizontalRule',
             'subPagesList',
             'table',
+            // --- MODIFICA 5: Registra il tipo per l'ID univoco ---
+            'inlineFlashcard', 
           ],
         }),
 
@@ -1229,20 +1237,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           createPage: createPage, // Passa la mutazione 'create'
         }),
         
-        // --- INIZIO NUOVA ESTENSIONE ---
-        !isReadOnly && FlashcardSyntax.configure({
-            pageId: page._id,
-            // Passiamo la mutazione Convex directly all'estensione
-            onUpsert: (data: { front: string, back: string, blockId: string }) => {
-                upsertFlashcardSyntax({
-                    front: data.front,
-                    back: data.back,
-                    sourcePageId: page._id,
-                    sourceBlockId: data.blockId,
-                });
-            }
-        }),
-        // --- FINE NUOVA ESTENSIONE ---
+        // --- MODIFICA 6: Sostituisci la vecchia estensione ---
+        // La vecchia riga (rimossa):
+        // !isReadOnly && FlashcardSyntax.configure({ ... }),
+        // La nuova riga (la InputRule non ha opzioni):
+        !isReadOnly && FlashcardSyntax,
+        // --- FINE MODIFICA 6 ---
         
         !isReadOnly && Placeholder.configure({
           emptyNodeClass: 'is-empty',
@@ -1315,7 +1315,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         },
       },
     },
-    [page._id, getPageById, isReadOnly, createPage, upsertFlashcardSyntax] // <-- Aggiunta dipendenza
+    // --- MODIFICA 7: Rimuovi `upsertFlashcardSyntax` dalle dipendenze ---
+    [page._id, getPageById, isReadOnly, createPage] 
   );
 
   const handleCreatePageFromSelection = useCallback(async () => {
@@ -1428,6 +1429,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
         if (extension.name === 'pageLink') {
           extension.options.getPageById = getPageById;
           extension.options.onOpenInSplitView = onOpenInSplitView;
+          // Aggiungiamo il pageId qui, così l'overlay della flashcard può trovarlo
+          extension.options.currentPageId = page._id; 
         }
         if (extension.name === 'blockLink') {
           extension.options.pageTitles = pageTitlesMap;
@@ -1445,7 +1448,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
           extension.options.createPage = createPage;
           extension.options.currentPageId = page._id;
         }
-        // --- NUOVA CONFIGURAZIONE ---
+        // --- MODIFICA 8: Rimuovi la configurazione della vecchia estensione ---
+        /*
         if (extension.name === 'flashcardSyntax') {
           extension.options.pageId = page._id;
           extension.options.onUpsert = (data: { front: string, back: string, blockId: string }) => {
@@ -1457,7 +1461,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
             });
           };
         }
-        // --- FINE NUOVA CONFIGURAZIONE ---
+        */
+        // --- FINE MODIFICA 8 ---
       });
     }
   }, [
@@ -1470,7 +1475,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(({
     onSelectPage,
     onCreateSubPage,
     createPage,
-    upsertFlashcardSyntax // Aggiunta dipendenza
+    // --- MODIFICA 9: Rimuovi `upsertFlashcardSyntax` dalle dipendenze ---
   ]);
 
   // --- Render (Invariato) ---

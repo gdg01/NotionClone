@@ -1,17 +1,20 @@
-// File: convex/flashcards.ts (NUOVO FILE)
+// File: convex/flashcards.ts (COMPLETAMENTE MODIFICATO)
 
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 
-// --- COSTANTI SRS ---
-const NEW_CARD_INTERVAL_MINUTES = 1; // 1 minuto per "Sbagliato"
-const LEARNING_INTERVAL_MINUTES = 10; // 10 minuti per "Difficile" (in apprendimento)
-const INITIAL_EASE_FACTOR = 2.5;
+// --- COSTANTI SRS (MODIFICATE) ---
+const NEW_CARD_DIFFICULTY = 3; // Difficoltà di default
+const NEW_CARD_INTERVAL_MINUTES = 1; // 1 minuto per "Sbagliato" (difficulty >= 3)
+const LEARNING_INTERVAL_MINUTES = 10; // 10 minuti per "Difficile" (difficulty = 2)
+const OK_INTERVAL_DAYS = 1; // 1 giorno per "OK" (difficulty = 1)
+const EASY_INTERVAL_DAYS = 4; // 4 giorni per "Facile" (difficulty = 0)
+
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const ONE_MINUTE_MS = 60 * 1000;
 
-// --- TIPI ---
+// --- Tipi (invariato) ---
 export type DeckSummary = {
   deckId: string; // Può essere un pageId o un nome di Tag
   deckName: string;
@@ -26,7 +29,7 @@ export type DeckSummary = {
 };
 
 /**
- * Crea una nuova flashcard.
+ * Crea una nuova flashcard. (MODIFICATO)
  */
 export const create = mutation({
   args: {
@@ -48,11 +51,9 @@ export const create = mutation({
       back: args.back,
       tags: args.tags,
       
-      // Valori SRS di default
-      state: "new",
+      // Valori SRS di default (MODIFICATO)
+      difficulty: NEW_CARD_DIFFICULTY,
       dueAt: Date.now(), // Scaduta subito
-      interval: 0, // In giorni
-      easeFactor: INITIAL_EASE_FACTOR,
     });
 
     return cardId;
@@ -60,7 +61,7 @@ export const create = mutation({
 });
 
 /**
- * Aggiorna il testo di una flashcard (durante la revisione).
+ * Aggiorna il testo di una flashcard (invariato).
  */
 export const update = mutation({
   args: {
@@ -85,7 +86,7 @@ export const update = mutation({
 });
 
 /**
- * Crea o aggiorna una flashcard basata sulla sintassi (::)
+ * Crea o aggiorna una flashcard basata sulla sintassi (::) (MODIFICATO)
  */
 export const upsertFromSyntax = mutation({
   args: {
@@ -113,6 +114,7 @@ export const upsertFromSyntax = mutation({
           back: args.back,
         });
       }
+      // Non resettiamo lo scheduling se la card esiste già
     } else {
       // Crea una nuova card
       await ctx.db.insert("flashcards", {
@@ -121,24 +123,40 @@ export const upsertFromSyntax = mutation({
         sourceBlockId: args.sourceBlockId,
         front: args.front,
         back: args.back,
-        state: "new",
+        difficulty: NEW_CARD_DIFFICULTY,
         dueAt: Date.now(),
-        interval: 0,
-        easeFactor: INITIAL_EASE_FACTOR,
       });
     }
   },
 });
 
+/**
+ * NUOVA MUTATION: Elimina una flashcard.
+ */
+export const deleteCard = mutation({
+  args: { cardId: v.id("flashcards") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    
+    const card = await ctx.db.get(args.cardId);
+    if (!card || card.userId !== identity.subject) {
+      throw new Error("Card not found or unauthorized");
+    }
+
+    await ctx.db.delete(args.cardId);
+  },
+});
+
 
 /**
- * Logica di business per la revisione SRS (Simplified SM-2)
- * Rating: 0 = Sbagliato, 1 = Difficile, 2 = OK, 3 = Facile
+ * Logica di business per la revisione SRS (MODIFICATA)
+ * Rating: "wrong" | "right"
  */
 export const reviewCard = mutation({
   args: {
     cardId: v.id("flashcards"),
-    rating: v.number(), // 0, 1, 2, 3
+    rating: v.union(v.literal("wrong"), v.literal("right")), // Nuovo rating
   },
   handler: async (ctx, { cardId, rating }) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -147,70 +165,37 @@ export const reviewCard = mutation({
     const card = await ctx.db.get(cardId);
     if (!card || card.userId !== identity.subject) throw new Error("Card not found");
 
-    let { state, interval, easeFactor } = card;
+    const currentDifficulty = card.difficulty;
+    let newDifficulty: number;
+
+    if (rating === "wrong") {
+      newDifficulty = currentDifficulty + 1;
+    } else { // rating === "right"
+      newDifficulty = Math.max(0, currentDifficulty - 1); // Non scende sotto 0
+    }
+
     const now = Date.now();
-    let dueAt = now;
+    let newDueAt = now;
 
-    if (rating === 0) { // Sbagliato / Again
-      state = "learning";
-      interval = 0; // Resetta l'intervallo
-      dueAt = now + NEW_CARD_INTERVAL_MINUTES * ONE_MINUTE_MS; // Rivedi tra 1 min
-    
-    } else { // 1, 2, o 3
-    
-      if (state === "new") {
-        state = "learning";
-        if (rating === 1) { // Difficile
-          interval = 0;
-          dueAt = now + LEARNING_INTERVAL_MINUTES * ONE_MINUTE_MS; // Rivedi tra 10 min
-        } else if (rating === 2) { // OK
-          state = "review"; // Promuovi a review
-          interval = 1; // 1 giorno
-          dueAt = now + ONE_DAY_MS;
-        } else { // Facile
-          state = "review";
-          interval = 4; // 4 giorni
-          dueAt = now + 4 * ONE_DAY_MS;
-        }
-      } 
-      
-      else if (state === "learning") {
-        if (rating === 1) { // Difficile
-          interval = 0; // Rimane in learning
-          dueAt = now + LEARNING_INTERVAL_MINUTES * ONE_MINUTE_MS;
-        } else { // OK o Facile
-          state = "review"; // Promuovi a review
-          interval = 1; // 1 giorno
-          dueAt = now + ONE_DAY_MS;
-        }
-      } 
-      
-      else if (state === "review") {
-        // Aggiorna Ease Factor
-        if (rating === 1) { // Difficile
-          easeFactor = Math.max(1.3, easeFactor - 0.2);
-        } else if (rating === 3) { // Facile
-          easeFactor = easeFactor + 0.15;
-        }
-        // (rating === 2 'OK' non cambia easeFactor)
-
-        // Calcola nuovo intervallo
-        interval = Math.ceil(interval * easeFactor);
-        dueAt = now + interval * ONE_DAY_MS;
-      }
+    if (newDifficulty >= 3) { // Sbagliato
+      newDueAt = now + NEW_CARD_INTERVAL_MINUTES * ONE_MINUTE_MS; // 1 min
+    } else if (newDifficulty === 2) { // Difficile
+      newDueAt = now + LEARNING_INTERVAL_MINUTES * ONE_MINUTE_MS; // 10 min
+    } else if (newDifficulty === 1) { // OK
+      newDueAt = now + OK_INTERVAL_DAYS * ONE_DAY_MS; // 1 Giorno
+    } else { // newDifficulty === 0 (Facile)
+      newDueAt = now + EASY_INTERVAL_DAYS * ONE_DAY_MS; // 4 Giorni
     }
     
     await ctx.db.patch(cardId, {
-      state: state as Doc<"flashcards">["state"],
-      interval,
-      easeFactor,
-      dueAt,
+      difficulty: newDifficulty,
+      dueAt: newDueAt,
     });
   },
 });
 
 /**
- * QUERY EFFICIENTE: Ottiene solo le carte scadute per un mazzo.
+ * QUERY EFFICIENTE: Ottiene solo le carte scadute per un mazzo. (Invariata)
  */
 export const listDueCards = query({
   args: {
@@ -241,7 +226,7 @@ export const listDueCards = query({
 });
 
 /**
- * QUERY AGGREGATA: Efficienza massima per la Dashboard.
+ * QUERY AGGREGATA: Efficienza massima per la Dashboard. (MODIFICATA)
  * Non restituisce le carte, solo i conteggi.
  */
 export const getDeckSummaries = query({
@@ -283,13 +268,15 @@ export const getDeckSummaries = query({
 
       const summary = summaries.get(deckId)!;
       const isDue = card.dueAt <= now;
+      const difficulty = card.difficulty;
 
-      if (card.state === "new") {
-        summary.counts.new++;
-      } else if (card.state === "learning") {
-        summary.counts.learning++;
-      } else {
-        summary.counts.review++;
+      // Mappiamo la nuova 'difficulty' ai vecchi stati 'new', 'learning', 'review'
+      if (difficulty === NEW_CARD_DIFFICULTY) {
+        summary.counts.new++; // "Nuove" sono quelle con difficulty di default
+      } else if (difficulty > NEW_CARD_DIFFICULTY || difficulty === 2) {
+        summary.counts.learning++; // "In Appr." sono quelle difficili (2) o molto difficili (>3)
+      } else { // difficulty 0 o 1
+        summary.counts.review++; // "Review" sono quelle facili (0) / ok (1)
       }
       
       if (isDue) {

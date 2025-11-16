@@ -82,30 +82,27 @@ export default defineSchema({
 
   flashcards: defineTable({
     userId: v.string(),
-    sourcePageId: v.id("pages"), // La "Pagina" a cui appartiene (il Mazzo)
-    sourceBlockId: v.optional(v.string()), // Il blocco che l'ha generata (per contesto)
-
-    front: v.string(), // Testo Domanda
-    back: v.string(), // Testo Risposta
-
-    // Campi per Spaced Repetition (SRS)
-    state: v.union(
-      v.literal("new"),
-      v.literal("learning"),
-      v.literal("review")
-    ),
-    dueAt: v.number(), // Timestamp (ms) di quando la card è "scaduta"
-    interval: v.number(), // Intervallo in giorni
-    easeFactor: v.number(), // Un moltiplicatore, es. 2.5
-
-    // Raggruppamento aggiuntivo
+    sourcePageId: v.id("pages"),
+    sourceBlockId: v.optional(v.string()),
+    front: v.string(),
+    back: v.string(),
     tags: v.optional(v.array(v.string())),
+    
+    // --- MODIFICHE ---
+    // Rimuovi i vecchi campi SRS (state, interval, easeFactor)
+    // Aggiungi il nuovo campo difficulty
+    difficulty: v.number(),
+    dueAt: v.number(),
+    // --- FINE MODIFICHE ---
+
   })
     .index("byUser", ["userId"])
-    // Indice CRITICO per la revisione: trova le carte scadute per un mazzo
-    .index("byDeckAndDue", ["userId", "sourcePageId", "dueAt"])
-    // Indice CRITICO per l'upsert da sintassi
-    .index("byBlock", ["userId", "sourceBlockId"]),
+    .index("byBlock", ["userId", "sourceBlockId"])
+    .index("byUserPage", ["userId", "sourcePageId"])
+    // --- AGGIUNTA ---
+    // Aggiungi questo indice per la dashboard
+    .index("byUserDifficulty", ["userId", "difficulty"]),
+
   // --- Tabella Backlinks ---
   backlinks: defineTable({
     sourcePageId: v.id("pages"),

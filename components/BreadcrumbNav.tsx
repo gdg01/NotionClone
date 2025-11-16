@@ -1,20 +1,27 @@
 // File: src/components/BreadcrumbNav.tsx (SOSTITUZIONE COMPLETA)
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom'; // Necessario per il Portal nel Drawer
+import ReactDOM from 'react-dom';
 import { UserButton } from '@clerk/clerk-react';
 import type { Page } from '../App';
-import { MenuIcon, ChevronRightIcon, SaveIcon, SearchIcon, LinkIcon } from './icons'; // Importa LinkIcon
+import {
+  MenuIcon,
+  ChevronRightIcon,
+  SaveIcon,
+  SearchIcon,
+  LinkIcon,
+  ArrowLeftIcon, // <-- Importata nuova icona
+  DotsHorizontalIcon, // <-- Importata nuova icona
+} from './icons';
 import { PomodoroTimer } from './PomodoroTimer';
 import { ShareMenu } from './ShareMenu';
 
-// Importa i componenti per il Drawer
 import { useMobileDrawerData } from '../context/MobileDrawerContext';
 import { MobileDrawer } from './MobileDrawer';
 import { TableOfContents } from './TableOfContents';
 import { BacklinksList } from './BacklinksList';
 
-export type SaveStatus = "Idle" | "Dirty" | "Saving" | "Saved";
+export type SaveStatus = 'Idle' | 'Dirty' | 'Saving' | 'Saved';
 
 // Interfaccia Props (invariata)
 interface BreadcrumbNavProps {
@@ -26,32 +33,61 @@ interface BreadcrumbNavProps {
   toggleSidebar: () => void;
   saveStatus: SaveStatus;
   lastSaveTime: Date | null;
-  lastModified: number | null; 
+  lastModified: number | null;
   onSaveNow: () => void;
   onOpenSpotlight: () => void;
   isSplitView?: boolean;
 }
 
-// (Icona Spinner e CheckIcon rimangono invariate)
+// Icona Spinner (invariata)
 const SpinnerIcon = (props: { className?: string }) => (
-  <svg className={`w-4 h-4 ${props.className || ''}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  <svg
+    className={`w-4 h-4 ${props.className || ''}`}
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+  >
+    <circle
+      className="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="4"
+    ></circle>
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    ></path>
   </svg>
 );
+// Icona Check (invariata)
 const CheckIcon = (props: { className?: string }) => (
-  <svg className={`w-4 h-4 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+  <svg
+    className={`w-4 h-4 ${props.className || ''}`}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      d="M5 13l4 4L19 7"
+    ></path>
   </svg>
 );
 
-// (SaveStatusIndicator - MODIFICATO z-index)
-const SaveStatusIndicator: React.FC<{ 
+// --- MODIFICA: SaveStatusIndicator ora accetta 'mode' ---
+const SaveStatusIndicator: React.FC<{
   status: SaveStatus;
   lastSaveTime: Date | null;
-  lastModified: number | null; 
-  onSaveNow: () => void; 
-}> = ({ status, lastSaveTime, lastModified, onSaveNow }) => {
+  lastModified: number | null;
+  onSaveNow: () => void;
+  mode?: 'desktop' | 'mobile'; // Aggiunta modalità per stile mobile
+}> = ({ status, lastSaveTime, lastModified, onSaveNow, mode = 'desktop' }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [countdown, setCountdown] = useState(15);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -59,9 +95,9 @@ const SaveStatusIndicator: React.FC<{
 
   useEffect(() => {
     if (status === 'Dirty') {
-      setCountdown(15); 
+      setCountdown(15);
       const timer = setInterval(() => {
-        setCountdown(prev => (prev > 0 ? prev - 1 : 0));
+        setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
       return () => clearInterval(timer);
     } else {
@@ -92,23 +128,62 @@ const SaveStatusIndicator: React.FC<{
   const getIndicatorContent = () => {
     switch (status) {
       case 'Saving':
-        return <><SpinnerIcon className="animate-spin" /> <span className="ml-2">Saving...</span></>;
+        return (
+          <>
+            <SpinnerIcon className="animate-spin" />
+            {/* Nascondi testo su schermi piccoli (mobile) */}
+            <span className="ml-2 hidden sm:inline">Saving...</span>
+          </>
+        );
       case 'Saved':
-        return <><CheckIcon /> <span className="ml-2">Saved</span></>;
+        return (
+          <>
+            <CheckIcon />
+            <span className="ml-2 hidden sm:inline">Saved</span>
+          </>
+        );
       case 'Dirty':
-        return <><span className="ml-2">Save in {countdown}s</span></>;
+        return (
+          <>
+            {/* Mostra solo '...' su mobile se sporco, per risparmiare spazio */}
+            <span className="ml-2 hidden sm:inline">Save in {countdown}s</span>
+            <span className="sm:hidden">...</span>
+          </>
+        );
       case 'Idle':
       default:
-        return null; 
+        return null;
     }
   };
 
   const indicatorContent = getIndicatorContent();
+  if (!indicatorContent) return null;
 
-  if (!indicatorContent) {
-    return null;
+  // --- NUOVO: Stile per mobile (da mettere nel drawer) ---
+  if (mode === 'mobile') {
+    return (
+      <div className="w-full">
+        <div className="px-2 py-1 text-sm text-notion-text-gray dark:text-notion-text-gray-dark">
+          {status === 'Saved' &&
+            `Last save: ${lastSaveTime ? lastSaveTime.toLocaleTimeString() : 'N/A'}`}
+          {status === 'Dirty' && `Next save in ${countdown}s`}
+          {status === 'Saving' && 'Saving...'}
+        </div>
+        <div className="border-t border-notion-border dark:border-notion-border-dark my-1 mx-1"></div>
+        <button
+          onClick={handleSaveNowClick}
+          disabled={status !== 'Dirty'}
+          className="flex items-center w-full text-left px-2 py-1 text-sm rounded text-notion-text dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark disabled:opacity-50"
+        >
+          <SaveIcon className="w-4 h-4 mr-2" />
+          Save Now
+        </button>
+      </div>
+    );
   }
+  // --- FINE NUOVO ---
 
+  // Stile Desktop (come prima)
   return (
     <div className="relative">
       <button
@@ -123,11 +198,7 @@ const SaveStatusIndicator: React.FC<{
       {isMenuOpen && (
         <div
           ref={menuRef}
-          // --- MODIFICA QUI ---
-          // Cambiato z-20 in z-50 per farlo apparire sopra la maggior parte
-          // degli elementi della pagina (come la TOC sticky che potrebbe essere z-30 o z-40)
           className="absolute top-full right-0 mt-2 w-56 bg-notion-bg-dark border border-notion-border-dark rounded-md shadow-lg p-1 z-50"
-          // --- FINE MODIFICA ---
         >
           <div className="flex flex-col">
             <div className="px-2 py-1 text-sm text-notion-text-gray-dark">
@@ -139,7 +210,8 @@ const SaveStatusIndicator: React.FC<{
             <div className="border-t border-notion-border-dark my-1 mx-1"></div>
             <button
               onClick={handleSaveNowClick}
-              className="flex items-center w-full text-left px-2 py-1 text-sm rounded text-notion-text-dark hover:bg-notion-hover-dark"
+              disabled={status !== 'Dirty'}
+              className="flex items-center w-full text-left px-2 py-1 text-sm rounded text-notion-text-dark hover:bg-notion-hover-dark disabled:opacity-50"
             >
               <SaveIcon className="w-4 h-4 mr-2" />
               Save Now
@@ -150,8 +222,9 @@ const SaveStatusIndicator: React.FC<{
     </div>
   );
 };
+// --- FINE MODIFICA SaveStatusIndicator ---
 
-
+// --- COMPONENTE PRINCIPALE (MODIFICATO) ---
 export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   pages,
   activePageId,
@@ -161,16 +234,15 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   toggleSidebar,
   saveStatus,
   lastSaveTime,
-  lastModified, 
+  lastModified,
   onSaveNow,
   onOpenSpotlight,
-  isSplitView = false
+  isSplitView = false,
 }) => {
-
+  // Calcola il percorso (invariato)
   const breadcrumbPath = useMemo(() => {
     const path: Page[] = [];
     if (!activePageId || !pages || pages.length === 0) return path;
-
     let currentPage = pages.find((p: Page) => p._id === activePageId);
     while (currentPage) {
       path.unshift(currentPage);
@@ -183,30 +255,54 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
     () => pages.find((p: Page) => p._id === activePageId),
     [pages, activePageId]
   );
-  
+
+  // --- INIZIO MODIFICHE MOBILE ---
+
+  // 1. Logica per il pulsante "Indietro"
+  const parentPage = useMemo(() => {
+    if (!activePage?.parentId) return null;
+    return pages.find((p: Page) => p._id === activePage.parentId);
+  }, [pages, activePage]);
+
+  const handleGoBack = () => {
+    if (parentPage) {
+      onSelectPage(parentPage._id);
+    }
+  };
+
+  // 2. Dati e stato per i drawer mobile
+  // Estendi lo stato per includere il nuovo drawer "more"
   const { headings, backlinks } = useMobileDrawerData();
-  const [drawerContent, setDrawerContent] = useState<'toc' | 'backlinks' | null>(null);
+  const [drawerContent, setDrawerContent] = useState<
+    'toc' | 'backlinks' | 'more' | null
+  >(null);
 
   const hasHeadings = headings.length > 0;
   const hasBacklinks = backlinks.length > 0;
 
+  // 3. Funzione per determinare il titolo del drawer
+  const getDrawerTitle = () => {
+    if (drawerContent === 'toc') return 'Indice Pagina';
+    if (drawerContent === 'backlinks') return 'Backlinks';
+    if (drawerContent === 'more') return 'Altre Opzioni';
+    return '';
+  };
+
+  // --- FINE MODIFICHE MOBILE ---
+
   return (
     <React.Fragment>
-      <div 
-        // --- MODIFICA QUI ---
-        // Cambiato z-1000 (classe custom/non valida) in z-40 (classe standard
-        // di Tailwind). Questo imposta la barra sopra la maggior parte del
-        // contenuto, ma *sotto* i suoi stessi menu (che abbiamo impostato a z-50).
+      <div
         className={`fixed top-0 left-0 right-0 z-40 flex items-center h-12 text-notion-text dark:text-notion-text-dark transition-all duration-300 ease-in-out bg-notion-bg dark:bg-notion-bg-dark`}
-        // --- FINE MODIFICA ---
-        style={{ 
+        style={{
           paddingLeft: isSidebarOpen ? 'calc(18rem + 1rem)' : '1rem',
-          paddingRight: '1rem'
-        }} 
+          paddingRight: '1rem',
+        }}
       >
+        {/* --- Pulsante Sidebar (Invariato) --- */}
         {!isSidebarOpen && (
-          <button 
-            onClick={toggleSidebar} 
+          <button
+            onClick={toggleSidebar}
             className="p-2 mr-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark transition-colors"
             aria-label="Open sidebar"
           >
@@ -214,8 +310,10 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           </button>
         )}
 
-        {/* Navigazione Breadcrumb (invariata) */}
-        <nav className="flex items-center truncate flex-1 min-w-0">
+        {/* ======================================= */}
+        {/* === VISTA DESKTOP (hidden md:flex) === */}
+        {/* ======================================= */}
+        <nav className="hidden md:flex items-center truncate flex-1 min-w-0">
           {breadcrumbPath.map((page, index) => (
             <React.Fragment key={page._id}>
               <span
@@ -238,8 +336,8 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           ))}
         </nav>
 
-        {/* Controlli a destra */}
-        <div className="flex items-center space-x-2 ml-auto pl-4">
+        {/* Controlli a destra (Desktop) */}
+        <div className="hidden md:flex items-center space-x-2 ml-auto pl-4">
           <button
             onClick={onOpenSpotlight}
             className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md"
@@ -248,79 +346,140 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           >
             <SearchIcon className="w-4 h-4" />
           </button>
-          
-          <SaveStatusIndicator 
+
+          <SaveStatusIndicator
             status={saveStatus}
             lastSaveTime={lastSaveTime}
-            lastModified={lastModified} 
-            onSaveNow={onSaveNow} 
+            lastModified={lastModified}
+            onSaveNow={onSaveNow}
+            mode="desktop"
           />
-          
-          {activePage && (
-            <ShareMenu page={activePage} />
-          )}
-          
-          <PomodoroTimer />
 
-          {/* Pulsanti mobile (invariati) */}
-          {hasHeadings && (
-            <button
-              onClick={() => setDrawerContent('toc')}
-              className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md md:hidden"
-              aria-label="Apri indice"
-              title="Indice pagina"
-            >
-              <MenuIcon className="w-4 h-4" />
-            </button>
-          )}
-          {hasBacklinks && (
-            <button
-              onClick={() => setDrawerContent('backlinks')}
-              className="flex-shrink-0 p-2 text-sm text-notion-text-gray dark:text-notion-text-dark hover:bg-notion-hover dark:hover:bg-notion-hover-dark rounded-md md:hidden"
-              aria-label="Apri backlinks"
-              title="Backlinks"
-            >
-              <LinkIcon className="w-4 h-4" />
-            </button>
-          )}
+          {activePage && <ShareMenu page={activePage} />}
+
+          <PomodoroTimer />
 
           <div className="flex-shrink-0">
             <UserButton afterSignOutUrl="/" />
           </div>
 
-          {isSplitView && (
-            <div className="w-8 flex-shrink-0" />
+          {isSplitView && <div className="w-8 flex-shrink-0" />}
+        </div>
+
+        {/* ======================================= */}
+        {/* === VISTA MOBILE (flex md:hidden) === */}
+        {/* ======================================= */}
+        <div className="flex md:hidden items-center justify-between flex-1 min-w-0">
+          {/* Pulsante Indietro */}
+          <button
+            onClick={handleGoBack}
+            disabled={!parentPage}
+            className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark disabled:opacity-30"
+            aria-label="Pagina precedente"
+          >
+            <ArrowLeftIcon className="w-5 h-5" />
+          </button>
+
+          {/* Titolo Pagina Corrente (Mobile) */}
+          <span className="truncate font-semibold text-sm px-2">
+            {activePage?.icon ? (
+              <span className="mr-1">{activePage.icon}</span>
+            ) : null}
+            {activePage?.title || 'Untitled'}
+          </span>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Icone Azioni Mobile */}
+          <button
+            onClick={onOpenSpotlight}
+            className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+            aria-label="Apri ricerca"
+          >
+            <SearchIcon className="w-5 h-5" />
+          </button>
+
+          {hasHeadings && (
+            <button
+              onClick={() => setDrawerContent('toc')}
+              className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              aria-label="Apri indice"
+            >
+              <MenuIcon className="w-5 h-5" />
+            </button>
           )}
 
+          {hasBacklinks && (
+            <button
+              onClick={() => setDrawerContent('backlinks')}
+              className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              aria-label="Apri backlinks"
+            >
+              <LinkIcon className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Pulsante "Altro" (Mobile) */}
+          <div className="relative">
+            <button
+              onClick={() => setDrawerContent('more')}
+              className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
+              aria-label="Altre opzioni"
+            >
+              <DotsHorizontalIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Drawer (invariato) */}
+      {/* --- MODIFICA: Gestione Drawer Unificata --- */}
       <MobileDrawer
         isOpen={drawerContent !== null}
         onClose={() => setDrawerContent(null)}
-        title={drawerContent === 'toc' ? 'Indice Pagina' : 'Backlinks'}
+        title={getDrawerTitle()}
       >
-        {drawerContent === 'toc' && (
+        {drawerContent === 'toc' && activePageId && (
           <TableOfContents
             headings={headings}
-            pageId={activePageId!}
+            pageId={activePageId}
             isSplitView={false}
-            mode="mobile" 
-            onLinkClick={() => setDrawerContent(null)} 
+            mode="mobile"
+            onLinkClick={() => setDrawerContent(null)}
           />
         )}
         {drawerContent === 'backlinks' && activePage && (
           <BacklinksList
             backlinks={backlinks}
             onSelectPage={(pageId) => {
-              onSelectPage(pageId); 
-              setDrawerContent(null); 
+              onSelectPage(pageId);
+              setDrawerContent(null);
             }}
-            onOpenInSplitView={() => {}} 
+            onOpenInSplitView={() => {}}
             isSidebarOpen={false}
-            mode="mobile" 
+            mode="mobile"
           />
+        )}
+        {/* Nuovo Contenuto per il Drawer "Altro" */}
+        {drawerContent === 'more' && activePage && (
+          <div className="flex flex-col space-y-2">
+            {/* Questi componenti ora vivono dentro il drawer */}
+            <div className="p-2">
+              <UserButton afterSignOutUrl="/" />
+            </div>
+            <div className="border-t border-notion-border dark:border-notion-border-dark my-1"></div>
+            <ShareMenu page={activePage} />
+            <div className="border-t border-notion-border dark:border-notion-border-dark my-1"></div>
+            <PomodoroTimer />
+            <div className="border-t border-notion-border dark:border-notion-border-dark my-1"></div>
+            <SaveStatusIndicator
+              status={saveStatus}
+              lastSaveTime={lastSaveTime}
+              lastModified={lastModified}
+              onSaveNow={onSaveNow}
+              mode="mobile" // <-- Passa la modalità mobile
+            />
+          </div>
         )}
       </MobileDrawer>
     </React.Fragment>

@@ -148,3 +148,43 @@ export const generateFlashcard = action({
   },
 });
 // --- FINE SEZIONE MODIFICATA ---
+
+
+export const getAnswerForQuestion = action({
+  args: {
+    question: v.string(),
+    context: v.string(), // Passiamo l'intero testo della pagina come contesto
+  },
+  handler: async (ctx, args): Promise<string> => {
+    
+    const systemPrompt = `Sei un assistente allo studio. Ti viene fornito un CONTESTO (gli appunti di un utente) e una DOMANDA.
+Il tuo compito è fornire una RISPOSTA concisa e accurata alla domanda, basandoti *esclusivamente* sul contesto fornito.
+Rispondi solo con il testo della risposta, senza frasi introduttive come "Ecco la risposta:" o "Certo!".`;
+
+    const userPrompt = `CONTESTO:
+"""
+${args.context}
+"""
+
+DOMANDA:
+"${args.question}"
+
+RISPOSTA CONCISA:`;
+
+    try {
+      // Chiama la tua azione 'askGroq' esistente per centralizzare la logica
+      const answer = await ctx.runAction(api.ai.askGroq, {
+        history: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
+      
+      return answer.trim();
+
+    } catch (error) {
+      console.error("Errore generazione risposta AI:", error);
+      return "Errore durante la generazione della risposta.";
+    }
+  },
+});
