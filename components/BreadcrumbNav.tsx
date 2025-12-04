@@ -1,4 +1,5 @@
-// File: src/components/BreadcrumbNav.tsx (SOSTITUZIONE COMPLETA)
+// File: src/components/BreadcrumbNav.tsx
+// (SOSTITUZIONE COMPLETA - Con fix per nascondere i DB Container dalla Breadcrumb)
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -10,8 +11,8 @@ import {
   SaveIcon,
   SearchIcon,
   LinkIcon,
-  ArrowLeftIcon, // <-- Importata nuova icona
-  DotsHorizontalIcon, // <-- Importata nuova icona
+  ArrowLeftIcon,
+  DotsHorizontalIcon,
 } from './icons';
 import { PomodoroTimer } from './PomodoroTimer';
 import { ShareMenu } from './ShareMenu';
@@ -80,13 +81,13 @@ const CheckIcon = (props: { className?: string }) => (
   </svg>
 );
 
-// --- MODIFICA: SaveStatusIndicator ora accetta 'mode' ---
+// Componente indicatore stato salvataggio (invariato)
 const SaveStatusIndicator: React.FC<{
   status: SaveStatus;
   lastSaveTime: Date | null;
   lastModified: number | null;
   onSaveNow: () => void;
-  mode?: 'desktop' | 'mobile'; // Aggiunta modalità per stile mobile
+  mode?: 'desktop' | 'mobile';
 }> = ({ status, lastSaveTime, lastModified, onSaveNow, mode = 'desktop' }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [countdown, setCountdown] = useState(15);
@@ -131,7 +132,6 @@ const SaveStatusIndicator: React.FC<{
         return (
           <>
             <SpinnerIcon className="animate-spin" />
-            {/* Nascondi testo su schermi piccoli (mobile) */}
             <span className="ml-2 hidden sm:inline">Saving...</span>
           </>
         );
@@ -145,7 +145,6 @@ const SaveStatusIndicator: React.FC<{
       case 'Dirty':
         return (
           <>
-            {/* Mostra solo '...' su mobile se sporco, per risparmiare spazio */}
             <span className="ml-2 hidden sm:inline">Save in {countdown}s</span>
             <span className="sm:hidden">...</span>
           </>
@@ -159,7 +158,6 @@ const SaveStatusIndicator: React.FC<{
   const indicatorContent = getIndicatorContent();
   if (!indicatorContent) return null;
 
-  // --- NUOVO: Stile per mobile (da mettere nel drawer) ---
   if (mode === 'mobile') {
     return (
       <div className="w-full">
@@ -181,9 +179,7 @@ const SaveStatusIndicator: React.FC<{
       </div>
     );
   }
-  // --- FINE NUOVO ---
 
-  // Stile Desktop (come prima)
   return (
     <div className="relative">
       <button
@@ -222,7 +218,6 @@ const SaveStatusIndicator: React.FC<{
     </div>
   );
 };
-// --- FINE MODIFICA SaveStatusIndicator ---
 
 // --- COMPONENTE PRINCIPALE (MODIFICATO) ---
 export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
@@ -239,26 +234,40 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   onOpenSpotlight,
   isSplitView = false,
 }) => {
-  // Calcola il percorso (invariato)
+  
+  // --- MODIFICA CHIAVE: Logica di salto per i DB Inline ---
   const breadcrumbPath = useMemo(() => {
     const path: Page[] = [];
     if (!activePageId || !pages || pages.length === 0) return path;
+    
     let currentPage = pages.find((p: Page) => p._id === activePageId);
+    
     while (currentPage) {
-      path.unshift(currentPage);
+      // 1. Controlliamo se abbiamo già aggiunto un figlio al percorso (l'elemento path[0])
+      const childPage = path[0]; 
+
+      // 2. Determiniamo se la 'currentPage' è un contenitore DB che deve essere nascosto.
+      // Un DB Container ha un figlio (la riga) che punta al genitore tramite 'dbViewId'.
+      const isHiddenDbContainer = childPage && childPage.dbViewId === currentPage._id;
+
+      // 3. Aggiungi al percorso SOLO se NON è un contenitore DB nascosto
+      if (!isHiddenDbContainer) {
+        path.unshift(currentPage);
+      }
+
+      // 4. Risali al genitore
       currentPage = pages.find((p: Page) => p._id === currentPage.parentId);
     }
     return path;
   }, [pages, activePageId]);
+  // --- FINE MODIFICA ---
 
   const activePage = useMemo(
     () => pages.find((p: Page) => p._id === activePageId),
     [pages, activePageId]
   );
 
-  // --- INIZIO MODIFICHE MOBILE ---
-
-  // 1. Logica per il pulsante "Indietro"
+  // Logica pulsante indietro (Mobile)
   const parentPage = useMemo(() => {
     if (!activePage?.parentId) return null;
     return pages.find((p: Page) => p._id === activePage.parentId);
@@ -270,8 +279,7 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
     }
   };
 
-  // 2. Dati e stato per i drawer mobile
-  // Estendi lo stato per includere il nuovo drawer "more"
+  // Drawer Mobile
   const { headings, backlinks } = useMobileDrawerData();
   const [drawerContent, setDrawerContent] = useState<
     'toc' | 'backlinks' | 'more' | null
@@ -280,15 +288,12 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
   const hasHeadings = headings.length > 0;
   const hasBacklinks = backlinks.length > 0;
 
-  // 3. Funzione per determinare il titolo del drawer
   const getDrawerTitle = () => {
     if (drawerContent === 'toc') return 'Indice Pagina';
     if (drawerContent === 'backlinks') return 'Backlinks';
     if (drawerContent === 'more') return 'Altre Opzioni';
     return '';
   };
-
-  // --- FINE MODIFICHE MOBILE ---
 
   return (
     <React.Fragment>
@@ -299,7 +304,6 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           paddingRight: '1rem',
         }}
       >
-        {/* --- Pulsante Sidebar (Invariato) --- */}
         {!isSidebarOpen && (
           <button
             onClick={toggleSidebar}
@@ -310,9 +314,7 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           </button>
         )}
 
-        {/* ======================================= */}
-        {/* === VISTA DESKTOP (hidden md:flex) === */}
-        {/* ======================================= */}
+        {/* VISTA DESKTOP */}
         <nav className="hidden md:flex items-center truncate flex-1 min-w-0">
           {breadcrumbPath.map((page, index) => (
             <React.Fragment key={page._id}>
@@ -366,11 +368,8 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
           {isSplitView && <div className="w-8 flex-shrink-0" />}
         </div>
 
-        {/* ======================================= */}
-        {/* === VISTA MOBILE (flex md:hidden) === */}
-        {/* ======================================= */}
+        {/* VISTA MOBILE */}
         <div className="flex md:hidden items-center justify-between flex-1 min-w-0">
-          {/* Pulsante Indietro */}
           <button
             onClick={handleGoBack}
             disabled={!parentPage}
@@ -380,7 +379,6 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
             <ArrowLeftIcon className="w-5 h-5" />
           </button>
 
-          {/* Titolo Pagina Corrente (Mobile) */}
           <span className="truncate font-semibold text-sm px-2">
             {activePage?.icon ? (
               <span className="mr-1">{activePage.icon}</span>
@@ -388,10 +386,8 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
             {activePage?.title || 'Untitled'}
           </span>
 
-          {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Icone Azioni Mobile */}
           <button
             onClick={onOpenSpotlight}
             className="p-2 rounded-md hover:bg-notion-hover dark:hover:bg-notion-hover-dark"
@@ -420,7 +416,6 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
             </button>
           )}
 
-          {/* Pulsante "Altro" (Mobile) */}
           <div className="relative">
             <button
               onClick={() => setDrawerContent('more')}
@@ -433,7 +428,6 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
         </div>
       </div>
 
-      {/* --- MODIFICA: Gestione Drawer Unificata --- */}
       <MobileDrawer
         isOpen={drawerContent !== null}
         onClose={() => setDrawerContent(null)}
@@ -460,10 +454,8 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
             mode="mobile"
           />
         )}
-        {/* Nuovo Contenuto per il Drawer "Altro" */}
         {drawerContent === 'more' && activePage && (
           <div className="flex flex-col space-y-2">
-            {/* Questi componenti ora vivono dentro il drawer */}
             <div className="p-2">
               <UserButton afterSignOutUrl="/" />
             </div>
@@ -477,7 +469,7 @@ export const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({
               lastSaveTime={lastSaveTime}
               lastModified={lastModified}
               onSaveNow={onSaveNow}
-              mode="mobile" // <-- Passa la modalità mobile
+              mode="mobile"
             />
           </div>
         )}
