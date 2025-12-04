@@ -30,18 +30,13 @@ import {
 } from '@tiptap/core';
 import UniqueID from '@tiptap/extension-unique-id';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { createLowlight } from 'lowlight';
+import { all, createLowlight } from 'lowlight';
 import Dropcursor from '@tiptap/extension-dropcursor';
-import javascript from 'highlight.js/lib/languages/javascript';
-
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 
-import python from 'highlight.js/lib/languages/python';
-import c from 'highlight.js/lib/languages/c';
-import x86asm from 'highlight.js/lib/languages/x86asm';
 import { debounce } from 'lodash';
 
 // Importa utility da Prosemirror
@@ -261,11 +256,8 @@ declare module '@tiptap/core' {
     };
   }
 }
-const lowlight = createLowlight();
-lowlight.register('javascript', javascript);
-lowlight.register('python', python);
-lowlight.register('c', c);
-lowlight.register('x86asm', x86asm);
+const lowlight = createLowlight(all);
+
 const PageLink = Node.create({
   name: 'pageLink',
   group: 'inline',
